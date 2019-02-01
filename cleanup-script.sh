@@ -32,3 +32,8 @@ sudo rm -rf /data
 
 # Remove Nirmata dir
 sudo rm -rf /opt/nirmata
+
+# Clean Nirmata agent
+sudo systemctl stop nirmata-agent.service
+sudo systemctl disable nirmata-agent.service
+sudo rm -rf /etc/systemd/system/nirmata-agent.service
