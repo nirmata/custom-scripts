@@ -29,3 +29,6 @@ sudo ip link delete flannel.1
 
 # Remove cluster database
 sudo rm -rf /data
+
+# Remove Nirmata dir
+sudo rm -rf /opt/nirmata
