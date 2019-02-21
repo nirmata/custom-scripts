@@ -29,7 +29,7 @@ output=$(docker info 2>&1)
     if [[ $output == *"is not a mountpoint"* ]]; then
          echo WARNING:Docker does not have its own mountpoint
     else
-         echo Docker has it own mounpoint!
+         echo Docker has it's own mountpoint!
     fi
 
 output=$(cat /etc/systemd/system/docker.service.d/http-proxy.conf 2>&1 | grep proxy)
