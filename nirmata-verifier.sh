@@ -17,7 +17,6 @@ output=$(cat /prox/swaps 2>&1)
          echo swap disabled!
     fi
 
-
 output=$(docker info 2>&1)
 
     if [[ $output == *"Containers"* ]]; then
