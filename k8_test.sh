@@ -15,6 +15,9 @@ export warn=0
 nossh=0
 script_args=""
 email=1
+sendemail='ssilbory/sendemail'
+alwaysemail=1
+fix_issues=1
 
 if [ -f /.dockerenv ]; then
     export INDOCKER=0
@@ -64,6 +67,7 @@ helpfunction(){
     echo "--namespace namespace_name  (Default is \"$namespace\")."
     echo '--cluster                   Run Nirmata K8 cluster tests'
     echo "--service service_target    (Default $SERVICETARGET)."
+    echo "--fix                       Attempt to fix issues (local only)"
     echo "--ssh \"user@host.name\"    Ssh to a space-separated list of systems and run local tests"
     echo "Note that --ssh does not return non-zero on failure on ssh targets.  Parse for:"
     echo "  'Test completed with errors'"
@@ -78,12 +82,14 @@ helpfunction(){
     echo "--user user.name            Sets your user name. Optional"
     echo "--passwd 'L33TPASSW)RD'     Set your password.  Optional"
     echo "--email-opts '-o tls=yes'   Additional options to send to the sendemail program."
+    echo "--always-email              Send emails on warning and good test results"
+    echo "--sendemail                 Set the container used to send email."
     echo "Simple open smtp server:"
-    echo "$0 --email --to testy@nirmata.com --smtp smtp.gmail.com  --user sam.silbory"
+    echo "$0 --email --to testy@nirmata.com --smtp smtp.example.com"
     echo "Authenication with an smtp server:"
-    echo "--email --to testy@nirmata.com --smtp smtp.gmail.com  --user sam.silbory --passwd 'foo!foo'"
+    echo "--email --to testy@nirmata.com --smtp smtp.example.com  --user sam.silbory --passwd 'foo!foo'"
     echo "Authenication with gmail: (Requires an app password be used!)"
-    echo "--email --to testy@nirmata.com --smtp smtp.gmail.com:587  --user sam.silbory --passwd 'foo!foo' --email-opts '-o tls=yes'"
+    echo "--email --to testy@nirmata.com --smtp smtp.gmail.com:587  --user sam.silbory --passwd 'foo!foo'"
 }
 
 # deal with args
@@ -164,7 +170,12 @@ for i in "$@";do
             nossh=0
             shift
         ;;
+        --fix)
+            fix_issues=0
+            shift
+        ;;
         --logfile)
+            script_args=" $script_args $1 $2 "
             logfile=$2
             shift
             shift
@@ -175,40 +186,56 @@ for i in "$@";do
             shift
         ;;
         --to)
+            script_args=" $script_args $1 $2 "
             TO=$2
             shift
             shift
         ;;
         --from)
+            script_args=" $script_args $1 $2 "
             FROM=$2
             shift
             shift
         ;;
         --subject)
+            script_args=" $script_args $1 $2 "
             SUBJECT=$2
             shift
             shift
         ;;
         --smtp)
+            script_args=" $script_args $1 $2 "
             SMTP_SERVER=$2
             shift
             shift
         ;;
         --user)
+            script_args=" $script_args $1 $2 "
             EMAIL_USER=$2
             shift
             shift
         ;;
         --passwd)
+            script_args=" $script_args $1 $2 "
             EMAIL_PASSWD=$2
             shift
             shift
         ;;
-        --email-opts)
-            EMAIL_OPTS=$2
+                --sendemail)
+            sendemail=$2
             shift
             shift
         ;;
+        --always-email)
+            alwaysemail=0
+            shift
+        ;;
+        #--email-opts)
+        #    script_args=" $script_args $1 $2 "
+        #    EMAIL_OPTS="\'$2\'"
+        #    shift
+        #    shift
+        #;;
         -h|--help)
             helpfunction
             exit 0
@@ -217,13 +244,13 @@ for i in "$@";do
 done
 # We don't ever want to pass --ssh!!!
 script_args=$(echo $script_args |sed 's/--ssh//')
-script_args=$(echo $script_args |sed 's/--email//')
 
 
 
 remote_test(){
-echo "Starting Cluster Tests"
-echo 'apiVersion: extensions/v1beta1
+    command -v kubectl &>/dev/null || error 'No kubectl found in path!!!'
+    echo "Starting Cluster Tests"
+    echo 'apiVersion: extensions/v1beta1
 kind: DaemonSet
 metadata:
   name: net-test-all
@@ -238,164 +265,199 @@ spec:
           image: nicolaka/netshoot
           command: [ "/bin/sh", "-c", "sleep  100000" ]' >/tmp/nirmata-net-test-all.yml
 
-namespaces="$(kubectl get ns  --no-headers | awk '{print $1}')"
-for ns in $namespaces;do
-        kubectl --namespace=$ns delete ds net-test-all --ignore-not-found=true &>/dev/null
-done
-#echo allns is $allns
-if [ $allns != 1 ];then
+    namespaces="$(kubectl get ns  --no-headers | awk '{print $1}')"
     for ns in $namespaces;do
-        kubectl --namespace=$ns apply -f /tmp/nirmata-net-test-all.yml &>/dev/null
+            kubectl --namespace=$ns delete ds net-test-all --ignore-not-found=true &>/dev/null
     done
-else
-    namespaces=$namespace
-    kubectl --namespace=$namespace apply -f /tmp/nirmata-net-test-all.yml &>/dev/null
-fi
-#echo Testing namespaces $namespaces
-
-#check for nodes, and kubectl function
-echo
-echo Found the following nodes:
-if ! kubectl get node --no-headers; then
-    error 'Failed to contact cluster!!!'
-    echo 'Is the master up? Is kubectl configured?'
-fi
-echo
-
-if kubectl get no -o jsonpath="{.items[?(@.spec.unschedulable)].metadata.name}"|grep .;then
-    warn 'Above nodes are unschedulable!!'
-fi
-
-times=0
-required_pods=$(kubectl get node --no-headers | awk '{print $2}' |grep Ready |wc -l)
-num_ns=$(echo $namespaces |wc -w)
-required_pods=$((required_pods * num_ns))
-#echo required_pods is $required_pods
-echo -n 'Waiting for net-test-all pods to start'
-until [[ $(kubectl get pods -l app=net-test-all-app --no-headers --all-namespaces|awk '{print $4}' |grep Running|wc -l) -ge $required_pods ]]|| \
-  [[ $times = 60 ]];do
-    sleep 1;
-    echo -n .;
-    times=$((times + 1));
-done
-echo
-
-if [[ $(kubectl -n $namespace get pods -l app=net-test-all-app --no-headers |awk '{print $3}' |grep Running|wc -l) -ne \
-  $(kubectl get node --no-headers | awk '{print $2}' |grep Ready |wc -l) ]] ;then
-    error 'Failed to start net-test-all on all nodes!!'
-    echo Debugging:
-    kubectl get pods -l app=net-test-all-app -o wide
-    kubectl get node
-fi
-
-dns_error=0
-for ns in $namespaces;do
-    echo Testing $ns namespace
-for pod in $(kubectl -n $ns get pods -l app=net-test-all-app --no-headers |grep Running |awk '{print $1}');do
-    echo Testing "$(kubectl -n $ns get pods $pod -o wide --no-headers| awk '{print $7}') Namespace $ns"
-    if  kubectl exec $pod -- nslookup $DNSTARGET 2>&1|grep -e can.t.resolve -e does.not.resolve -e can.t.find -e No.answer;then
-        warn "Can not resolve external DNS name $DNSTARGET on $pod."
-        kubectl -n $ns get pod $pod -o wide
-        kubectl -n $ns exec $pod -- sh -c "nslookup $DNSTARGET"
-        echo
+    #echo allns is $allns
+    if [ $allns != 1 ];then
+        for ns in $namespaces;do
+            kubectl --namespace=$ns apply -f /tmp/nirmata-net-test-all.yml &>/dev/null
+        done
     else
-        good "DNS test $DNSTARGET on $pod suceeded."
+        namespaces=$namespace
+        kubectl --namespace=$namespace apply -f /tmp/nirmata-net-test-all.yml &>/dev/null
     fi
-    #kubectl -n $ns exec $pod -- nslookup $SERVICETARGET
-    if kubectl -n $ns exec $pod -- nslookup $SERVICETARGET 2>&1|grep -e can.t.resolve -e does.not.resolve -e can.t.find -e No.answer;then
-        warn "Can not resolve $SERVICETARGET service on $pod"
-        echo 'Debugging info:'
-        kubectl get pod $pod -o wide
-        dns_error=1
-        kubectl -n $ns exec $pod -- nslookup $DNSTARGET
-        kubectl -n $ns exec $pod -- nslookup $SERVICETARGET
-        kubectl -n $ns exec $pod -- cat /etc/resolv.conf
-        error "DNS test failed to find $SERVICETARGET service on $pod"
-    else
-        good "DNS test $SERVICETARGET on $pod suceeded."
+    #echo Testing namespaces $namespaces
+
+    #check for nodes, and kubectl function
+    echo
+    echo Found the following nodes:
+    if ! kubectl get node --no-headers; then
+        error 'Failed to contact cluster!!!'
+        echo 'Is the master up? Is kubectl configured?'
     fi
-    if [[ $curl -eq 0 ]];then
-         if [[ $http -eq 0 ]];then
-             if  kubectl -n $ns exec $pod -- sh -c "if curl --max-time 5 http://$SERVICETARGET; then exit 0; else exit 1; fi" 2>&1|grep -e 'command terminated with exit code 1';then
-                 error "http://$SERVICETARGET failed to respond to curl in 5 seconds!"
+    echo
+
+    if kubectl get no -o jsonpath="{.items[?(@.spec.unschedulable)].metadata.name}"|grep .;then
+        warn 'Above nodes are unschedulable!!'
+    fi
+
+    times=0
+    required_pods=$(kubectl get node --no-headers | awk '{print $2}' |grep Ready |wc -l)
+    num_ns=$(echo $namespaces |wc -w)
+    required_pods=$((required_pods * num_ns))
+    #echo required_pods is $required_pods
+    echo -n 'Waiting for net-test-all pods to start'
+    until [[ $(kubectl get pods -l app=net-test-all-app --no-headers --all-namespaces|awk '{print $4}' |grep Running|wc -l) -ge $required_pods ]]|| \
+      [[ $times = 60 ]];do
+        sleep 1;
+        echo -n .;
+        times=$((times + 1));
+    done
+    echo
+
+    if [[ $(kubectl -n $namespace get pods -l app=net-test-all-app --no-headers |awk '{print $3}' |grep Running|wc -l) -ne \
+      $(kubectl get node --no-headers | awk '{print $2}' |grep Ready |wc -l) ]] ;then
+        error 'Failed to start net-test-all on all nodes!!'
+        echo Debugging:
+        kubectl get pods -l app=net-test-all-app -o wide
+        kubectl get node
+    fi
+
+    dns_error=0
+    for ns in $namespaces;do
+        echo Testing $ns namespace
+    for pod in $(kubectl -n $ns get pods -l app=net-test-all-app --no-headers |grep Running |awk '{print $1}');do
+        echo Testing "$(kubectl -n $ns get pods $pod -o wide --no-headers| awk '{print $7}') Namespace $ns"
+        if  kubectl exec $pod -- nslookup $DNSTARGET 2>&1|grep -e can.t.resolve -e does.not.resolve -e can.t.find -e No.answer;then
+            warn "Can not resolve external DNS name $DNSTARGET on $pod."
+            kubectl -n $ns get pod $pod -o wide
+            kubectl -n $ns exec $pod -- sh -c "nslookup $DNSTARGET"
+            echo
+        else
+            good "DNS test $DNSTARGET on $pod suceeded."
+        fi
+        #kubectl -n $ns exec $pod -- nslookup $SERVICETARGET
+        if kubectl -n $ns exec $pod -- nslookup $SERVICETARGET 2>&1|grep -e can.t.resolve -e does.not.resolve -e can.t.find -e No.answer;then
+            warn "Can not resolve $SERVICETARGET service on $pod"
+            echo 'Debugging info:'
+            kubectl get pod $pod -o wide
+            dns_error=1
+            kubectl -n $ns exec $pod -- nslookup $DNSTARGET
+            kubectl -n $ns exec $pod -- nslookup $SERVICETARGET
+            kubectl -n $ns exec $pod -- cat /etc/resolv.conf
+            error "DNS test failed to find $SERVICETARGET service on $pod"
+        else
+            good "DNS test $SERVICETARGET on $pod suceeded."
+        fi
+        if [[ $curl -eq 0 ]];then
+             if [[ $http -eq 0 ]];then
+                 if  kubectl -n $ns exec $pod -- sh -c "if curl --max-time 5 http://$SERVICETARGET; then exit 0; else exit 1; fi" 2>&1|grep -e 'command terminated with exit code 1';then
+                     error "http://$SERVICETARGET failed to respond to curl in 5 seconds!"
+                 else
+                     good "HTTP test $SERVICETARGET on $pod suceeded."
+                 fi
              else
-                 good "HTTP test $SERVICETARGET on $pod suceeded."
+                 if  kubectl -n $ns exec $pod -- sh -c "if curl --max-time 5 -k https://$SERVICETARGET; then exit 0; else exit 1; fi" 2>&1|grep -e 'command terminated with exit code 1';then
+                     error "https://$SERVICETARGET failed to respond to curl in 5 seconds!"
+                 else
+                     good "HTTPS test $SERVICETARGET on $pod suceeded."
+                 fi
              fi
-         else
-             if  kubectl -n $ns exec $pod -- sh -c "if curl --max-time 5 -k https://$SERVICETARGET; then exit 0; else exit 1; fi" 2>&1|grep -e 'command terminated with exit code 1';then
-                 error "https://$SERVICETARGET failed to respond to curl in 5 seconds!"
-             else
-                 good "HTTPS test $SERVICETARGET on $pod suceeded."
-             fi
-         fi
+        fi
+
+    done
+    done
+
+    if [[ dns_error -eq 1 ]];then
+        warn "DNS issues detected"
+        echo 'Additional debugging info:'
+        kubectl get svc -n kube-system kube-dns coredns
+        kubectl get deployments -n kube-system coredns kube-dns
+        echo 'Note you should have either coredns or kube-dns running. Not both.'
     fi
 
-done
-done
+     namespaces="$(kubectl get ns  --no-headers | awk '{print $1}')"
+     for ns in $namespaces;do
+         kubectl --namespace=$ns delete ds net-test-all --ignore-not-found=true &>/dev/null
+    done
 
-if [[ dns_error -eq 1 ]];then
-    warn "DNS issues detected"
-    echo 'Additional debugging info:'
-    kubectl get svc -n kube-system kube-dns coredns
-    kubectl get deployments -n kube-system coredns kube-dns
-    echo 'Note you should have either coredns or kube-dns running. Not both.'
-fi
+    # mongo testing
+    echo "Testing MongoDB Pods"
+    mongo_ns=$(kubectl get pod --all-namespaces -l nirmata.io/service.name=mongodb --no-headers | awk '{print $1}'|head -1)
+    mongos=$(kubectl get pod --all-namespaces -l nirmata.io/service.name=mongodb --no-headers | awk '{print $2}')
+    mongo_num=0
+    mongo_master=""
+    for mongo in $mongos; do
+        if kubectl -n $mongo_ns exec $mongo -c mongodb -- sh -c 'echo "db.serverStatus()" |mongo' 2>&1|grep  '"ismaster"'|grep -q 'true,';then
+            mongo_master="$mongo_master $mongo"
+        fi
+        mongo_num=$((mongo_num + 1));
+    done
+    mongo_error=0
+    [[ $mongo_num -gt 3 ]] && error "Found $mongo_num Mongo Pods $mongos!!!" && mongo_error=1
+    [[ $mongo_num -eq 0 ]] && error "Found Mongo Pods $mongo_num!!!" && mongo_error=1
+    [[ $mongo_num -eq 1 ]] && warn "Found One Mongo Pod"  && mongo_error=1
+    [ -z $mongo_master ] &&  error "No Mongo Master found!!"  && mongo_error=1
+    [[ $(echo $mongo_master|wc -w) -gt 1 ]] &&  error "Mongo Masters $mongo_master found!!" && mongo_error=1
+    [ $mongo_error -eq 0 ] && good "MongoDB passed tests"
 
- namespaces="$(kubectl get ns  --no-headers | awk '{print $1}')"
- for ns in $namespaces;do
-     kubectl --namespace=$ns delete ds net-test-all --ignore-not-found=true &>/dev/null
-done
+    # Zookeeper testing
+    zoo_error=0
+    echo "Testing Zookeeper pods"
+    zoo_ns=$(kubectl get pod --all-namespaces -l nirmata.io/service.name=zk --no-headers | awk '{print $1}'|head -1)
+    zoos=$(kubectl get pod --all-namespaces -l nirmata.io/service.name=zk --no-headers | awk '{print $2}')
+    zoo_num=0
+    zoo_leader=""
+    for zoo in $zoos; do
+        if kubectl -n $zoo_ns exec $zoo -- sh -c "/usr/bin/zkServer.sh status" 2>&1|grep Mode |grep -q -e leader -e standalone;then
+            zoo_leader="$zoo_leader $zoo"
+        fi
+        zoo_num=$((zoo_num + 1));
+        zoo_df=$(kubectl -n $zoo_ns exec $zoo -- df /tmp/ | awk '{ print $5; }' |tail -1|sed s/%//)
+        [[ $zoo_df -gt 50 ]] && error "Found zookeeper volume at ${zoo_df}% usage on $zoo"
+    done
+    [[ $zoo_num -gt 3 ]] && error "Found $zoo_num Zookeeper Pods $zoos!!!" && zoo_error=1
+    [[ $zoo_num -eq 0 ]] && error "Found Zero Zookeeper Pods !!" && zoo_error=1
+    [[ $zoo_num -eq 1 ]] && warn "Found One Zookeeper Pod." && zoo_error=1
+    [ -z $zoo_leader ] &&  error "No Zookeeper Leader found!!" && zoo_error=1
+    [[ $(echo $zoo_leader|wc -w) -gt 1 ]] && warn "Found Zookeeper Leaders $zoo_leader." && zoo_error=1
+    [ $zoo_error -eq 0 ] && good "Zookeeper passed tests"
 
-# mongo testing
-echo "Testing MongoDB Pods"
-mongo_ns=$(kubectl get pod --all-namespaces -l nirmata.io/service.name=mongodb --no-headers | awk '{print $1}'|head -1)
-mongos=$(kubectl get pod --all-namespaces -l nirmata.io/service.name=mongodb --no-headers | awk '{print $2}')
-mongo_num=0
-mongo_master=""
-for mongo in $mongos; do
-    if kubectl -n $mongo_ns exec  -it $mongo -c mongodb -- sh -c 'echo "db.serverStatus()" |mongo' 2>&1|grep  '"ismaster"'|grep -q 'true,';then
-        mongo_master="$mongo_master $mongo"
-    fi
-    mongo_num=$((mongo_num + 1));
-done
-mongo_error=0
-[[ $mongo_num -gt 3 ]] && error "Found $mongo_num Mongo Pods $mongos!!!" && mongo_error=1
-[[ $mongo_num -eq 0 ]] && error "Found Mongo Pods $mongo_num!!!" && mongo_error=1
-[[ $mongo_num -eq 1 ]] && warn "Found One Mongo Pod"  && mongo_error=1
-[ -z $mongo_master ] &&  error "No Mongo Master found!!"  && mongo_error=1
-[[ $(echo $mongo_master|wc -w) -gt 1 ]] &&  error "Mongo Masters $mongo_master found!!" && mongo_error=1
-[ $mongo_error -eq 0 ] && good "MongoDB passed tests"
-
-zoo_error=0
-echo "Testing Zookeeper pods"
-zoo_ns=$(kubectl get pod --all-namespaces -l nirmata.io/service.name=zk --no-headers | awk '{print $1}'|head -1)
-zoos=$(kubectl get pod --all-namespaces -l nirmata.io/service.name=zk --no-headers | awk '{print $2}')
-zoo_num=0
-zoo_leader=""
-for zoo in $zoos; do
-    if kubectl -n $zoo_ns exec  -it $zoo -- sh -c "/usr/bin/zkServer.sh status" 2>&1|grep Mode |grep -q -e leader -e standalone;then
-        zoo_leader="$zoo_leader $zoo"
-    fi
-    zoo_num=$((zoo_num + 1));
-done
-[[ $zoo_num -gt 3 ]] && error "Found $zoo_num Zookeeper Pods $zoos!!!" && zoo_error=1
-[[ $zoo_num -eq 0 ]] && error "Found Zero Zookeeper Pods !!" && zoo_error=1
-[[ $zoo_num -eq 1 ]] && warn "Found One Zookeeper Pod." && zoo_error=1
-[ -z $zoo_leader ] &&  error "No Zookeeper Leader found!!" && zoo_error=1
-[[ $(echo $zoo_leader|wc -w) -gt 1 ]] && warn "Found Zookeeper Leaders $zoo_leader." && zoo_error=1
-[ $zoo_error -eq 0 ] && good "Zookeeper passed tests"
+    #  testing
+    echo "Testing Kafka pods"
+    kafka_ns=$(kubectl get pod --all-namespaces -l nirmata.io/service.name=kafka --no-headers | awk '{print $1}'|head -1)
+    kafkas=$(kubectl get pod --all-namespaces -l nirmata.io/service.name=kafka --no-headers | awk '{print $2}')
+    for kafka in $kafkas; do
+        kafka_df=$(kubectl -n $kafka_ns exec $kafka -- df /tmp/ | awk '{ print $5; }' |tail -1|sed s/%//)
+        [[ $kafka_df -gt 50 ]] && error "Found Kafka volume at ${kafka_df}% usage on $kafka"
+    done
 
 }
 
 local_test(){
 echo "Starting Local Tests"
-#test selinux
+
+echo "Checking for swap"
+if [[ $(swapon -s | wc -l) -gt 1 ]] ;  then
+    if [[ $fix_issues -eq 0 ]];then
+        warn "Found swap enabled"
+        echo "Applying the following fixes"
+        ech 'swapoff -a'
+        swapoff -a
+        echo "sed -i '/[[:space:]]*swap[[:space:]]*swap/d' /etc/fstab"
+        sed -i '/[[:space:]]*swap[[:space:]]*swap/d' /etc/fstab
+    else
+        error "Found swap enabled!"
+    fi
+fi
+
+echo "Testing SELinux"
 if type sestatus &>/dev/null;then
     if ! sestatus | grep "Current mode" |grep -e permissive -e disabled;then
         warn 'SELinux enabled'
-        echo Consider the following changes to disabled SELinux if you are having issues:
-        echo '  sed s/^SELINUX=.*/SELINUX=permissive/ 1'
-        echo '  setenforce 0'
+        if [[ $fix_issues -eq 0 ]];then
+            echo "Applying the following fixes"
+            echo '  sed -i s/^SELINUX=.*/SELINUX=permissive/ /etc/selinux/config'
+            sed -i s/^SELINUX=.*/SELINUX=permissive/ /etc/selinux/config
+            echo '  setenforce 0'
+            setenforce 0
+        else
+            echo Consider the following changes to disabled SELinux if you are having issues:
+            echo '  sed -i s/^SELINUX=.*/SELINUX=permissive/ /etc/selinux/config'
+            echo '  setenforce 0'
+        fi
     fi
 else
     #assuming debian/ubuntu don't do selinux
@@ -406,31 +468,57 @@ fi
 
 #test kernel ip forward settings
 if grep -q 0 /proc/sys/net/ipv4/ip_forward;then
-    error net.ipv4.ip_forward is set to 0
-    echo Consider the following changes:
-    echo '  sysctl -w net.ipv4.ip_forward=1'
-    echo '  echo net.ipv4.ip_forward=1 >> /etc/sysctl.conf'
+        if [[ $fix_issues -eq 0 ]];then
+            warn net.ipv4.ip_forward is set to 0
+            echo "Applying the following fixes"
+            echo '  sysctl -w net.ipv4.ip_forward=1'
+            sysctl -w net.ipv4.ip_forward=1
+            echo '  echo net.ipv4.ip_forward=1 >> /etc/sysctl.conf'
+            echo net.ipv4.ip_forward=1 >> /etc/sysctl.conf
+        else
+            error net.ipv4.ip_forward is set to 0
+            echo Consider the following changes:
+            echo '  sysctl -w net.ipv4.ip_forward=1'
+            echo '  echo net.ipv4.ip_forward=1 >> /etc/sysctl.conf'
+        fi
 else
     good ip_forward enabled
 fi
 
 if [ ! -e /proc/sys/net/bridge/bridge-nf-call-iptables ];then
-    error '/proc/sys/net/bridge/bridge-nf-call-iptables does not exist!'
-    echo 'Is the br_netfilter module loaded? "lsmod |grep br_netfilter"'
-    echo Consider the following changes:
-    echo '  modprobe br_netfilter'
-    echo '  echo "br_netfilter" > /etc/modules-load.d/br_netfilter.conf.'
-else
-    if grep -q 0 /proc/sys/net/bridge/bridge-nf-call-iptables;then
+    if [[ $fix_issues -eq 0 ]];then
+        warn '/proc/sys/net/bridge/bridge-nf-call-iptables does not exist!'
+        echo "Applying the following fixes"
+        echo '  modprobe br_netfilter'
+        modprobe br_netfilter
+        echo '  echo "br_netfilter" > /etc/modules-load.d/br_netfilter.conf'
+        echo "br_netfilter" > /etc/modules-load.d/br_netfilter.conf
+    else
+        error '/proc/sys/net/bridge/bridge-nf-call-iptables does not exist!'
+        echo 'Is the br_netfilter module loaded? "lsmod |grep br_netfilter"'
+        echo Consider the following changes:
+        echo '  modprobe br_netfilter'
+        echo '  echo "br_netfilter" > /etc/modules-load.d/br_netfilter.conf'
+    fi
+fi
+if grep -q 0 /proc/sys/net/bridge/bridge-nf-call-iptables;then
+    if [[ $fix_issues -eq 0 ]];then
+        warn "Bridge netfilter disabled!!"
+        echo "Applying the following fixes"
+        echo '  sysctl -w net.bridge.bridge-nf-call-iptables=1'
+        sysctl -w net.bridge.bridge-nf-call-iptables=1
+        echo '  echo net.bridge.bridge-nf-call-iptables=1 >> /etc/sysctl.conf'
+        echo net.bridge.bridge-nf-call-iptables=1 >> /etc/sysctl.conf
+    else
         error "Bridge netfilter disabled!!"
         echo Consider the following changes:
         echo '  sysctl -w net.bridge.bridge-nf-call-iptables=1'
         echo '  echo net.bridge.bridge-nf-call-iptables=1 >> /etc/sysctl.conf'
-    else
-        good bridge-nf-call-iptables enabled
     fi
-
+else
+    good bridge-nf-call-iptables enabled
 fi
+
 
 #TODO check for proxy settings, how, what, why
 
@@ -445,50 +533,40 @@ else
         good Docker is active
     fi
 fi
+if type kubelet &>/dev/null;then
+    #test for k8 service
+    echo Found kubelet running local kubernetes tests
+    if ! systemctl is-active kubelet &>/dev/null ; then
+        error 'Kubelet is not active?'
+    else
+        good Kublet is active
+    fi
 
-#test for k8 service
-if ! systemctl is-active kubelet &>/dev/null ; then
-    error 'Kubelet is not active?'
-else
-    good Kublet is active
+    if ! systemctl is-enabled kubelet &>/dev/null ; then
+        if [[ $fix_issues -eq 0 ]];then
+            echo "Applying the following fixes"
+            echo systectl enable kubelet
+            systectl enable kubelet
+        else
+            error 'Kubelet is not set to run at boot?'
+        fi
+    else
+        good Kublet is enabled at boot
+    fi
+
+    if [ ! -e /opt/cni/bin/bridge ];then
+        warn '/opt/cni/bin/bridge not found is your CNI installed?'
+    fi
 fi
-
-if [ ! -e /opt/cni/bin/bridge ];then
-    warn '/opt/cni/bin/bridge not found is your CNI installed?'
-fi
-
 }
 
 #start main script
-if [[ $email -eq 0 ]];then
-    [ -z $logfile ] && logfile="/tmp/k8_test.$$"
-    [ -z $EMAIL_USER ] && EMAIL_USER=""
-    [ -z $EMAIL_PASSWD ] && EMAIL_PASSWD=""
-    #[ -z $TO ] && error "No TO address given!!!" && exit 1
-    [ -z $FROM ] && FROM="k8@nirmata.com" && warn "You provided no From address using $FROM"
-    [ -z $SUBJECT ] && SUBJECT="K8 test script error" && warn "You provided no Subject using $SUBJECT"
-    #[ -z $SMTP_SERVER ] && error "No smtp server given!!!" && exit 1
-    echo
-    sleep 1
-    $0 $script_args 2>&1 |tee $logfile
-    if [[ ${PIPESTATUS[0]} -ne 0 ]]; then
-        sed -i -e 's/\x1b\[[0-9;]*m//g' -e 's/$'"/`echo \\\r`/" $logfile
-        BODY=$(cat $logfile)
-        docker run ssilbory/sendemail $TO $FROM "$SUBJECT" "${BODY}" $SMTP_SERVER "$EMAIL_USER" "$EMAIL_PASSWD" "$EMAIL_OPTS"
-        #If they named it something else don't delete
-        rm -f /tmp/k8_test.$$
-        exit 1
-    fi
-    sed -i -e 's/\x1b\[[0-9;]*m//g' -e 's/$'"/`echo \\\r`/" $logfile
-    #If they named it something else don't delete
-    rm -f /tmp/k8_test.$$
-    exit 0
-fi
 
 
 if [ ! -z $logfile ];then
     $0 $script_args 2>&1 |tee $logfile
     return_code=$?
+    # Reformat the log file for better reading
     sed -i -e 's/\x1b\[[0-9;]*m//g' -e 's/$'"/`echo \\\r`/" $logfile
     exit $return_code
 fi
@@ -502,6 +580,33 @@ if [[ $nossh -eq 1 ]];then
         done
     fi
 else
+    if [[ $email -eq 0 ]];then
+        script_args=$(echo $script_args |sed 's/--email//')
+        [ -z $logfile ] && logfile="/tmp/k8_test.$$"
+        [ -z $EMAIL_USER ] && EMAIL_USER=""
+        [ -z $EMAIL_PASSWD ] && EMAIL_PASSWD=""
+        #[ -z $TO ] && error "No TO address given!!!" && exit 1
+        [ -z $FROM ] && FROM="k8@nirmata.com" && warn "You provided no From address using $FROM"
+        [ -z $SUBJECT ] && SUBJECT="K8 test script error" && warn "You provided no Subject using $SUBJECT"
+        #[ -z $SMTP_SERVER ] && error "No smtp server given!!!" && exit 1
+        echo
+        sleep 1
+        $0 $script_args 2>&1 |tee $logfile
+        if [[ ${PIPESTATUS[0]} -ne 0 || ${alwaysemail} -eq 0 ]]; then
+            # Reformat the log file for better reading
+            sed -i -e 's/\x1b\[[0-9;]*m//g' -e 's/$'"/`echo \\\r`/" $logfile
+            BODY=$(cat $logfile)
+            docker run $sendemail $TO $FROM "$SUBJECT" "${BODY}" $SMTP_SERVER "$EMAIL_USER" "$EMAIL_PASSWD" "$EMAIL_OPTS"
+            #If they named it something else don't delete
+            rm -f /tmp/k8_test.$$
+            exit 1
+        fi
+        # Reformat the log file for better reading
+        sed -i -e 's/\x1b\[[0-9;]*m//g' -e 's/$'"/`echo \\\r`/" $logfile
+        #If they named it something else don't delete
+        rm -f /tmp/k8_test.$$
+        exit 0
+    fi
     if [[ $run_local -eq 0 ]];then
         local_test
     fi
