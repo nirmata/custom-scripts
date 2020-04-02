@@ -5,7 +5,8 @@
 sudo docker stop $(sudo docker ps | grep “flannel” | gawk '{print $1}')
 sudo docker stop $(sudo docker ps | grep "nirmata" | gawk '{print $1}')
 sudo docker stop $(sudo docker ps | grep "kube" | gawk '{print $1}')
-sudo docker rm  $(sudo docker ps -a | grep "Exit" |gawk '{print $1}')
+sudo docker system prune --volumes -f
+sudo docker image prune -f
 
 # Remove any cni plugins
 sudo rm -rf /etc/cni/*
