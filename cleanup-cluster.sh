@@ -1,12 +1,15 @@
 #!/bin/bash
 # Nirmata cleanup script
+if [ "$EUID" -ne 0 ]
+  then echo "Please run with sudo"
+  exit
+fi
 
-sudo -i 
 
 # Clean Nirmata agent
-sudo systemctl stop nirmata-agent.service
-sudo systemctl disable nirmata-agent.service
-sudo rm -rf /etc/systemd/system/nirmata-agent.service
+systemctl stop nirmata-agent.service
+systemctl disable nirmata-agent.service
+rm -rf /etc/systemd/system/nirmata-agent.service
 
 # Cleanup docker 
 docker rm -f $(docker ps -qa)
@@ -19,14 +22,17 @@ for dir in $cleanupdirs; do
   rm -rf $dir
 done
 
-# Disable kubelet 
+
+# Disable and cleanup Kubelet 
 systemctl disable kubelet
 kubeadm reset -f
+microk8s reset --destroy-storage 
+microk8s stop
 
 
 # Clear IP Tables
-sudo iptables --flush
-sudo iptables -tnat --flush
+iptables --flush
+iptables -tnat --flush
 
 # Restart Docker
 # sudo systemctl restart docker
