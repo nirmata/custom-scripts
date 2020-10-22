@@ -3,7 +3,7 @@ Param(
     [parameter(Mandatory = $false)] $BaseDir="c:\k",
     [parameter(Mandatory = $false)] $ClusterCIDR="10.244.0.0/16",
     [parameter(Mandatory = $false)] $ServiceCIDR="10.96.0.0/12",
-    [parameter(Mandatory = $false)] $InterfaceName="Ethernet",
+    [parameter(Mandatory = $false)] $InterfaceName="Ethernet0",
     [parameter(Mandatory = $false)] $Release = "1.15.12",
     [parameter(Mandatory = $false)] $NanosServerImageTag = "10.0.17763.802",
     [parameter(Mandatory = $false)] $ServerCoreImageTag = "1809",
@@ -31,7 +31,7 @@ $Global:ClusterCidr=$ClusterCIDR
 $Global:KubeletFeatureGates="RotateKubeletClientCertificate=true"
 $Global:KubeproxyFeatureGates="WinOverlay=true"
 # Docker is installed ?
-function IsDockerInstalledAndRunning() 
+function IsDockerInstalledAndRunning()
 {
     $serviceName="docker"
     $service= Get-Service $serviceName -ErrorAction SilentlyContinue
@@ -51,7 +51,7 @@ function IsDockerInstalledAndRunning()
 
 
 function InstallDockerImages()
-{   
+{
     # Nano Server
     $nanoServerImage = $Global:NanoServerImageName +":"+ $Global:NanosServerImageTag
     if (!(docker images $nanoServerImage -q))
@@ -72,7 +72,7 @@ function InstallDockerImages()
     # set it to latest
     docker tag $nanoServerImage $($NanoServerImageName+":latest")
     write-host "Tag image $nanoServerImage to image $($NanoServerImageName+":latest")"
-    
+
 
     # Server Core
     $serverCoreImage = $Global:ServercoreImageName +":"+ $Global:ServerCoreImageTag
@@ -96,7 +96,7 @@ function InstallDockerImages()
     write-host "Tag image $serverCoreImage to image $($ServercoreImageName+":latest")"
 }
 
-function InstallPauseImage() 
+function InstallPauseImage()
 {
     # Prepare POD infra Images
     $infraPodImage=docker images kubeletwin/pause -q
@@ -117,7 +117,7 @@ function InstallKubernetesBinaries()
     Param(
         [parameter(Mandatory = $true)] $Release,
             $DestinationPath
-        ) 
+        )
 
         $existingPath = [Environment]::GetEnvironmentVariable("Path", [System.EnvironmentVariableTarget]::Machine)
 
@@ -125,17 +125,17 @@ function InstallKubernetesBinaries()
         $env:path += ";$DestinationPath\kubernetes\node\bin"
         # For Persistent across reboot
         [Environment]::SetEnvironmentVariable("Path", $existingPath + ";$DestinationPath\kubernetes\node\bin", [EnvironmentVariableTarget]::Machine)
-    
+
         $env:KUBECONFIG = $(GetKubeConfig)
         [Environment]::SetEnvironmentVariable("KUBECONFIG", $(GetKubeConfig), [EnvironmentVariableTarget]::Machine)
-    
+
         $Url = "https://dl.k8s.io/v${Release}/kubernetes-node-windows-amd64.tar.gz"
         if ($Source.Url)
         {
             $Url = $Source.Url
         }
-    
-        DownloadAndExtractTarGz -url $Url -dstPath $DestinationPath        
+
+        DownloadAndExtractTarGz -url $Url -dstPath $DestinationPath
 }
 
 function DownloadAndExtractTarGz($url, $dstPath)
@@ -163,17 +163,17 @@ function DownloadFile()
         return
     }
 
-    $secureProtocols = @() 
-    $insecureProtocols = @([System.Net.SecurityProtocolType]::SystemDefault, [System.Net.SecurityProtocolType]::Ssl3) 
-    foreach ($protocol in [System.Enum]::GetValues([System.Net.SecurityProtocolType])) 
-    { 
-        if ($insecureProtocols -notcontains $protocol) 
-        { 
-            $secureProtocols += $protocol 
-        } 
-    } 
+    $secureProtocols = @()
+    $insecureProtocols = @([System.Net.SecurityProtocolType]::SystemDefault, [System.Net.SecurityProtocolType]::Ssl3)
+    foreach ($protocol in [System.Enum]::GetValues([System.Net.SecurityProtocolType]))
+    {
+        if ($insecureProtocols -notcontains $protocol)
+        {
+            $secureProtocols += $protocol
+        }
+    }
     [System.Net.ServicePointManager]::SecurityProtocol = $secureProtocols
-    
+
     try {
         (New-Object System.Net.WebClient).DownloadFile($Url,$Destination)
         Write-Host "Downloaded [$Url] => [$Destination]"
@@ -227,12 +227,12 @@ function DownloadFlannelBinaries()
 {
     param(
         [Parameter(Mandatory = $false, Position = 0)]
-        [string] $Release = "0.11.0",
+        [string] $Release = "0.13.0",
         [string] $DestinationPath = "c:\flannel"
     )
 
     Write-Host "Downloading Flannel binaries"
-    DownloadFile -Url  "https://github.com/coreos/flannel/releases/download/v${Release}/flanneld.exe" -Destination $DestinationPath\flanneld.exe 
+    DownloadFile -Url  "https://github.com/coreos/flannel/releases/download/v${Release}/flanneld.exe" -Destination $DestinationPath\flanneld.exe
 }
 
 function DownloadCniBinaries($NetworkMode, $CniPath)
@@ -267,7 +267,7 @@ function InstallFlannelD()
     [string] $DestinationPath = "c:\flannel",
     [Parameter(Mandatory = $true)][string] $InterfaceIpAddress
     )
-    
+
     Write-Host "Installing FlannelD Service"
     $logDir = [io.Path]::Combine($(GetLogDir), "flanneld");
     CreateDirectory $logDir
@@ -290,7 +290,7 @@ function InstallFlannelD()
     {
         $nodeName = (hostname).ToLower()
         CreateService -ServiceName FlannelD -CommandLine $flanneldArgs `
-            -LogFile "$log" -EnvVaribles @{NODE_NAME = "$nodeName";}    
+            -LogFile "$log" -EnvVaribles @{NODE_NAME = "$nodeName";}
     }
 }
 function GetFlannelNetConf()
@@ -310,14 +310,14 @@ function CreateService()
     # remove service, if it exists nope!
     New-Service -name $ServiceName -binaryPathName $binary `
         -displayName $ServiceName -startupType Automatic    `
-        -Description "$ServiceName Kubernetes Service" 
+        -Description "$ServiceName Kubernetes Service"
 
-    Write-Host @" 
+    Write-Host @"
     ++++++++++++++++++++++++++++++++
     Successfully created the service
     ++++++++++++++++++++++++++++++++
     Service [$ServiceName]
-    Cmdline [$binary] 
+    Cmdline [$binary]
     Env     [$($EnvVaribles | ConvertTo-Json -Depth 10)]
     Log     [$LogFile]
     ++++++++++++++++++++++++++++++++
@@ -360,12 +360,12 @@ function CreateSCMService()
         using System.Runtime.InteropServices;
         using System.ComponentModel;
 
-        public enum ServiceType : int {                                       
+        public enum ServiceType : int {
             SERVICE_WIN32_OWN_PROCESS = 0x00000010,
             SERVICE_WIN32_SHARE_PROCESS = 0x00000020,
-        };                                                                    
-        
-        public enum ServiceState : int {                                      
+        };
+
+        public enum ServiceState : int {
             SERVICE_STOPPED = 0x00000001,
             SERVICE_START_PENDING = 0x00000002,
             SERVICE_STOP_PENDING = 0x00000003,
@@ -373,8 +373,8 @@ function CreateSCMService()
             SERVICE_CONTINUE_PENDING = 0x00000005,
             SERVICE_PAUSE_PENDING = 0x00000006,
             SERVICE_PAUSED = 0x00000007,
-        };                                                                    
-          
+        };
+
         [StructLayout(LayoutKind.Sequential)]
         public struct ServiceStatus {
             public ServiceType dwServiceType;
@@ -384,7 +384,7 @@ function CreateSCMService()
             public int dwServiceSpecificExitCode;
             public int dwCheckPoint;
             public int dwWaitHint;
-        };     
+        };
 
         public class ScmService_$ServiceName : ServiceBase {
             private ServiceStatus m_serviceStatus;
@@ -394,7 +394,7 @@ function CreateSCMService()
                 ServiceName = "$ServiceName";
                 CanStop = true;
                 CanPauseAndContinue = false;
-                
+
                 m_writer = new StreamWriter("$LogFile");
                 Console.SetOut(m_writer);
                 Console.WriteLine("$Binary $ServiceName()");
@@ -427,7 +427,7 @@ function CreateSCMService()
                     m_process.OutputDataReceived  += new DataReceivedEventHandler((s, e) => { Console.WriteLine(e.Data); });
                     m_process.ErrorDataReceived += new DataReceivedEventHandler((s, e) => { Console.WriteLine(e.Data); });
 
-                    m_process.Exited += new EventHandler((s, e) => { 
+                    m_process.Exited += new EventHandler((s, e) => {
                         Console.WriteLine("$Binary exited unexpectedly " + m_process.ExitCode);
                         if (m_writer != null) m_writer.Flush();
                         m_serviceStatus.dwCurrentState = ServiceState.SERVICE_STOPPED;
@@ -440,7 +440,7 @@ function CreateSCMService()
                     m_process.BeginErrorReadLine();
                     m_serviceStatus.dwCurrentState = ServiceState.SERVICE_RUNNING;
                     Console.WriteLine("OnStart - Successfully started the service ");
-                } 
+                }
                 catch (Exception e)
                 {
                     Console.WriteLine("OnStart - Failed to start the service : " + e.Message);
@@ -455,7 +455,7 @@ function CreateSCMService()
 
             protected override void OnStop() {
                 Console.WriteLine("OnStop $ServiceName");
-                try 
+                try
                 {
                     m_serviceStatus.dwCurrentState = ServiceState.SERVICE_STOPPED;
                     if (m_process != null)
@@ -467,7 +467,7 @@ function CreateSCMService()
                         m_process = null;
                     }
                     Console.WriteLine("OnStop - Successfully stopped the service ");
-                } 
+                }
                 catch (Exception e)
                 {
                     Console.WriteLine("OnStop - Failed to stop the service : " + e.Message);
@@ -504,12 +504,12 @@ function Get-MgmtIpAddress()
 
 function SetGlobals()
 {
-    if ((Get-NetAdapter -InterfaceAlias "vEthernet ($Global:InterfaceName)" -ErrorAction SilentlyContinue))   
+    if ((Get-NetAdapter -InterfaceAlias "vEthernet ($Global:InterfaceName)" -ErrorAction SilentlyContinue))
     {
         $Global:ManagementIp = Get-InterfaceIpAddress -InterfaceName "vEthernet ($Global:InterfaceName)"
         $Global:ManagementSubnet = Get-MgmtSubnet -InterfaceName "vEthernet ($Global:InterfaceName)"
     }
-    elseif ((Get-NetAdapter -InterfaceAlias "$Global:InterfaceName" -ErrorAction SilentlyContinue))        
+    elseif ((Get-NetAdapter -InterfaceAlias "$Global:InterfaceName" -ErrorAction SilentlyContinue))
     {
         $Global:ManagementIp = Get-InterfaceIpAddress -InterfaceName "$Global:InterfaceName"
         $Global:ManagementSubnet = Get-MgmtSubnet -InterfaceName "$Global:InterfaceName"
@@ -642,17 +642,17 @@ Update-CNIConfig
               }
           }'
               #Add-Content -Path $CNIConfig -Value $jsonSampleConfig
-          
+
               $configJson =  ConvertFrom-Json $jsonSampleConfig
               $configJson.name = $NetworkName
               $configJson.type = "flannel"
               $configJson.delegate.type = "win-overlay"
-          
+
               $configJson.delegate.Policies[0].Value.ExceptionList[0] = $clusterCIDR
               $configJson.delegate.Policies[0].Value.ExceptionList[1] = $serviceCIDR
-          
+
               $configJson.delegate.Policies[1].Value.DestinationPrefix  = $serviceCIDR
-    
+
     if (Test-Path $CNIConfig) {
         Clear-Content -Path $CNIConfig
     }
@@ -670,7 +670,7 @@ Update-NetConfig
         $NetConfig,
         $clusterCIDR,
         $NetworkName,
-        [ValidateSet("overlay",IgnoreCase = $true)] 
+        [ValidateSet("overlay",IgnoreCase = $true)]
         [parameter(Mandatory = $true)] $NetworkMode
     )
     $jsonSampleConfig = '{
@@ -708,7 +708,7 @@ function InstallKubelet()
     Write-Host "Installing Kubelet Service"
     $kubeletConfig = [io.Path]::Combine($Global:BaseDir, "kubelet.conf")
     $logDir = [io.Path]::Combine($(GetLogDir), "kubelet")
-    CreateDirectory $logDir 
+    CreateDirectory $logDir
     $log = [io.Path]::Combine($logDir, "kubeletsvc.log");
 
     $kubeletArgs = GetKubeletArguments -KubeConfig $KubeConfig  `
@@ -778,6 +778,7 @@ function GetKubeletArguments()
         EnableDebuggingHandlers = $true;
         #ResolverConfig = "";
         HairpinMode = "promiscuous-bridge";
+        NetworkPlugin = "cni" ;
         # CgroupsPerQOS = $false;
         # EnforceNodeAllocatable = @("")
     }
@@ -852,7 +853,7 @@ function IsNodeRegistered()
 
 function CreateExternalNetwork
 {
-    Param([ValidateSet("overlay",IgnoreCase = $true)] 
+    Param([ValidateSet("overlay",IgnoreCase = $true)]
     [parameter(Mandatory = $true)] $NetworkMode,
     [parameter(Mandatory = $true)] $InterfaceName)
 
@@ -861,7 +862,7 @@ function CreateExternalNetwork
     # Create a Overlay network to trigger a vSwitch creation. Do this only once
     if(!(Get-HnsNetwork | ? Name -EQ "External"))
     {
-        New-HNSNetwork -Type $NetworkMode -AddressPrefix "192.168.255.0/30" -Gateway "192.168.255.1" -Name "External" -AdapterName "$InterfaceName" -SubnetPolicies @(@{Type = "VSID"; VSID = 9999; }) 
+        New-HNSNetwork -Type $NetworkMode -AddressPrefix "192.168.255.0/30" -Gateway "192.168.255.1" -Name "External" -AdapterName "$InterfaceName" -SubnetPolicies @(@{Type = "VSID"; VSID = 9999; })
     }
 }
 
@@ -911,7 +912,7 @@ function GetSourceVip($NetworkName)
 
     $ipamConfig | Out-File $sourceVipRequest
 
-    pushd  
+    pushd
     $env:CNI_COMMAND="ADD"
     $env:CNI_CONTAINERID="dummy"
     $env:CNI_NETNS="dummy"
@@ -920,7 +921,7 @@ function GetSourceVip($NetworkName)
 
     cd $env:CNI_PATH
     Get-Content $sourceVipRequest | .\host-local.exe | Out-File $sourceVipJson
-    $sourceVipJSONData = Get-Content $sourceVipJson | ConvertFrom-Json 
+    $sourceVipJSONData = Get-Content $sourceVipJson | ConvertFrom-Json
 
     Remove-Item env:CNI_COMMAND
     Remove-Item env:CNI_CONTAINERID
@@ -956,9 +957,9 @@ function InstallKubeProxy()
                     -ClusterCIDR $ClusterCIDR `
                     -ProxyFeatureGates $ProxyFeatureGates `
                     -LogDir $logDir
-    
+
     CreateService -ServiceName Kubeproxy -CommandLine $proxyArgs `
-        -LogFile "$log" 
+        -LogFile "$log"
 }
 
 function GetProxyArguments()
@@ -1014,7 +1015,7 @@ function GetProxyArguments()
     }
     ConvertTo-Json -Depth 10 $KubeproxyConfiguration | Out-File -FilePath $KubeProxyConfig
     #$proxyArgs += "--config=$KubeProxyConfig" # UnComment for Config
-    
+
     return $proxyArgs
 }
 function StartKubeProxy()
@@ -1053,7 +1054,7 @@ function CleanupOldNetwork($NetworkName, $ClearDocker = $true)
         }
 
         Write-Host "Cleaning up old HNS network found"
-        Write-Host ($hnsNetwork | ConvertTo-Json -Depth 10) 
+        Write-Host ($hnsNetwork | ConvertTo-Json -Depth 10)
         Remove-HnsNetwork $hnsNetwork
     }
 }
@@ -1069,7 +1070,7 @@ function RemoveExternalNetwork
 
 function CleanupContainers()
 {
-    docker ps -aq | foreach {docker rm $_ -f} 
+    docker ps -aq | foreach {docker rm $_ -f}
 }
 function UnInstallFlannelD()
 {
@@ -1121,7 +1122,7 @@ function UninstallKubernetesBinaries()
 {
     Param(
     $DestinationPath
-    ) 
+    )
     Remove-Item Env:\KUBECONFIG -ErrorAction SilentlyContinue
 
     # For current shell Path update
@@ -1317,41 +1318,61 @@ function Get-VmComputeNativeMethods()
     Add-Type -MemberDefinition $signature -Namespace VmCompute.PrivatePInvoke -Name NativeMethods -PassThru
 }
 
+Write-Host "Set Globals"
 SetGlobals
+Write-Host "Test Docker"
 IsDockerInstalledAndRunning
+Write-Host "Install Docker Images"
 InstallDockerImages
+Write-Host "Install Pause Image"
 InstallPauseImage
+Write-Host "Install 7z"
 Install-7Zip
+Write-Host "Install K8 binaries"
 InstallKubernetesBinaries -DestinationPath $Global:BaseDir -Release $Global:Release
+Write-Host "Download Flannel bins"
 DownloadFlannelBinaries -DestinationPath $Global:BaseDir
+Write-Host "Download CNI bins"
 DownloadCniBinaries -NetworkMode $Global:NetworkMode -CniPath (GetCniPath)
+Write-Host "Install Flannel"
 InstallFlannelD -Destination $Global:BaseDir -InterfaceIpAddress $Global:ManagementIp
 # CreateDirectory (GetCniConfig)
+Write-Host "Update CNI Config"
 Update-CNIConfig -CNIConfig (GetCniConfig) `
 -ClusterCIDR (GetClusterCidr) -KubeDnsServiceIP (GetKubeDnsServiceIp) `
 -ServiceCidr (GetServiceCidr) -InterfaceName $InterfaceName `
 -NetworkName $Global:NetworkName -NetworkMode $Global:NetworkMode
+Write-Host "Update Network Config"
 Update-NetConfig -NetConfig (GetFlannelNetConf) `
 -ClusterCIDR (GetClusterCidr) `
 -NetworkName $Global:NetworkName -NetworkMode $Global:NetworkMode
+Write-Host "Install Kubelet"
 InstallKubelet -KubeConfig (GetKubeConfig) -CniDir (GetCniPath) `
 -CniConf $(GetCniConfigPath) -KubeDnsServiceIp (GetKubeDnsServiceIp) `
--NodeIp $Global:ManagementIp -KubeletFeatureGates $Global:KubeletFeatureGates 
+-NodeIp $Global:ManagementIp -KubeletFeatureGates $Global:KubeletFeatureGates
+Write-Host "Start Kubelet"
 StartKubelet
+Write-Host "Waiting for Kubelet"
 WaitForNodeRegistration -TimeoutSeconds 30
 
 # Install CNI & Flannel
+Write-Host "Create External Network "
 CreateExternalNetwork -NetworkMode $Global:NetworkMode -InterfaceName $Global:InterfaceName
+Write-Host "Sleep for 30s"
 sleep 30
-StartFlanneld 
+Write-Host "Start Flannel"
+StartFlanneld
 WaitForNetwork $Global:NetworkName
 
 # Install & Start KubeProxy
+Write-Host "Install KubeProxy"
 $sourceVip = GetSourceVip -NetworkName $Global:NetworkName
 InstallKubeProxy -KubeConfig $(GetKubeConfig) `
         -NetworkName $Global:NetworkName -ClusterCIDR  (GetClusterCidr) `
         -SourceVip $sourceVip `
         -ProxyFeatureGates $Global:KubeproxyFeatureGates
+Write-Host "Start KubeProxy"
 StartKubeproxy
+Write-Host "Getting Kube Nodes"
 GetKubeNodes
 Write-Host "Node $(hostname) successfully joined the cluster"
