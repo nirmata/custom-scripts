@@ -1331,3 +1331,4 @@ CreateExternalNetwork -NetworkMode $Global:NetworkMode -InterfaceName $Global:In
 Write-Host "Sleep for 30s"
 sleep 30
 Get-HnsNetwork | ? Name -EQ "External"
+Restart-Computer -Force

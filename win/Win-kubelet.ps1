@@ -1324,6 +1324,10 @@ function Get-VmComputeNativeMethods()
 $env:Path += ";C:\k\kubernetes\node\bin"
 Write-Host "Set Globals"
 SetGlobals
+Write-Host "Install Kubelet"
+InstallKubelet -KubeConfig (GetKubeConfig) -CniDir (GetCniPath) `
+-CniConf $(GetCniConfigPath) -KubeDnsServiceIp (GetKubeDnsServiceIp) `
+-NodeIp $Global:ManagementIp -KubeletFeatureGates $Global:KubeletFeatureGates
 Write-Host "Start Kubelet"
 StartKubelet
 Write-Host "Waiting for Kubelet"

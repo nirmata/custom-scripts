@@ -21,4 +21,4 @@ netsh advfirewall firewall add rule name="docker_out_udp" dir=out action=allow p
 
 
 Write-Host "You must now reboot. Running Restart-Computer"
-Restart-Computer
+Restart-Computer -Force
