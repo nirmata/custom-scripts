@@ -1,0 +1,10 @@
+In theory you can just run Win-init.ps1 and Windows-setup-all.ps1
+
+
+If you are having issues with losing network connection you can run these script seperately.
+Win-init.ps1 (reboots)
+Win-download.ps1
+Win-kubelet.ps1
+Win-net.ps1 (reboots)
+Win-flannel.ps1 
+Win-proxy.ps1
