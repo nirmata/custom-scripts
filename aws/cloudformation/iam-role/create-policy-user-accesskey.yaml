@@ -1,0 +1,91 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Resources used by Nirmata
+Parameters:
+  Region:
+    Type: String
+    Description: "Region Name"
+Resources:
+  NirmataRolePolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "NirmataRolePolicy"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Resource: !Sub 'arn:aws:ec2:${Region}:094919933512:instance/*'
+            Action:
+              - 'ec2:TerminateInstances'
+              - 'ec2:StartInstances'
+              - 'ec2:StopInstances'
+            Condition:
+              StringEquals:
+                'ec2:ResourceTag/com.nirmata.createdBy': nirmata
+          - Effect: Allow
+            Resource: '*'
+            Action:
+              - 'autoscaling:Describe*'
+              - 'iam:PassRole'
+              - 'iam:SimulateCustomPolicy'
+              - 'iam:GenerateCredentialReport'
+              - 'iam:GenerateServiceLastAccessedDetails'
+              - 'iam:Get*'
+              - 'iam:List*'
+              - 'iam:SimulatePrincipalPolicy'
+              - 'iam:GetPolicyVersion'
+              - 'iam:CreateRole'
+              - 'iam:DeleteRole'
+              - 'iam:AttachRolePolicy'
+              - 'iam:DetachRolePolicy'
+              - 'iam:CreateInstanceProfile'
+              - 'iam:DeleteInstanceProfile'
+              - 'iam:AddRoleToInstanceProfile'
+              - 'iam:RemoveRoleFromInstanceProfile'
+              - 'ec2:CreateTags'
+              - 'ec2:RunInstances'
+              - 'ec2:Describe*'
+              - 'eks:*'
+              # Required for Amazon VPC CNI Plugin
+              - 'tag:TagResources'
+              - 'ec2:CreateNetworkInterface'
+              - 'ec2:AttachNetworkInterface'
+              - 'ec2:DeleteNetworkInterface'
+              - 'ec2:DetachNetworkInterface'
+              - 'ec2:DescribeNetworkInterfaces'
+              - 'ec2:DescribeInstances'
+              - 'ec2:ModifyNetworkInterfaceAttribute'
+              - 'ec2:AssignPrivateIpAddresses' 
+          - Effect: Allow
+            Resource: '*'
+            Action:
+              - 'cloudformation:CreateStack'
+              - 'cloudformation:DeleteStack'
+              - 'cloudformation:CreateChangeSet'
+              - 'cloudformation:UpdateStack'
+              - 'cloudformation:ExecuteChangeSet'
+              - 'cloudformation:Describe*'
+              - 'cloudformation:EstimateTemplateCost'
+              - 'cloudformation:Get*'
+              - 'cloudformation:List*'
+              - 'cloudformation:ValidateTemplate'
+              - 'cloudformation:DetectStackDrift'
+              - 'cloudformation:DetectStackResourceDrift'         
+  NirmataUser:
+    Type: AWS::IAM::User
+    Properties:
+      ManagedPolicyArns: 
+          - !Ref NirmataRolePolicy
+          - arn:aws:iam::aws:policy/AmazonEC2FullAccess
+          - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+  NirmataUserAccessKey:
+    Type: AWS::IAM::AccessKey
+    Properties:
+      UserName: !Ref NirmataUser
+
+Outputs:
+  AccessKeyID:
+    Value: !Ref NirmataUserAccessKey
+  SecretAccessKey:
+    Value: !GetAtt NirmataUserAccessKey.SecretAccessKey
+  User:
+    Value: !Ref NirmataUser

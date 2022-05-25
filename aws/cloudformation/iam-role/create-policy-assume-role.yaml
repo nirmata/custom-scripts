@@ -1,0 +1,69 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Resources used by Nirmata"
+Parameters:
+  Region:
+    Type: String
+    Description: "Region Name"
+Resources:
+  NirmataRolePolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: "NirmataRolePolicy"
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Resource: !Sub 'arn:aws:ec2:${Region}:094919933512:instance/*'
+            Action:
+              - 'ec2:StartInstances'
+              - 'ec2:StopInstances'
+              - 'ec2:TerminateInstances'
+            Condition:
+              StringEquals:
+                'ec2:ResourceTag/com.nirmata.createdBy': nirmata
+          - Effect: Allow
+            Resource: '*'
+            Action: 'autoscaling:Describe*'
+          - Effect: Allow
+            Resource: '*'
+            Action:
+              - 'ec2:RunInstances'
+              - 'ec2:CreateTags'
+              - 'ec2:Describe*'
+              - 'iam:GetRole'
+              - 'iam:GetPolicyVersion'
+              - 'iam:PassRole'
+              - 'iam:SimulateCustomPolicy'
+              - 'iam:ListPolicyVersions'
+              - 'iam:ListAttachedRolePolicies'
+              - 'iam:CreateServiceLinkedRole'
+              - 'iam:ListInstanceProfiles'
+              - 'eks:*'
+              # Required for Amazon VPC CNI Plugin
+              - 'tag:TagResources'
+              - 'ec2:CreateNetworkInterface'
+              - 'ec2:AttachNetworkInterface'
+              - 'ec2:DeleteNetworkInterface'
+              - 'ec2:DetachNetworkInterface'
+              - 'ec2:DescribeNetworkInterfaces'
+              - 'ec2:DescribeInstances'
+              - 'ec2:ModifyNetworkInterfaceAttribute'
+              - 'ec2:AssignPrivateIpAddresses'
+  NirmataAssumeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: 'arn:aws:iam::094919933512:root'
+            Action: 'sts:AssumeRole'
+            Condition: {}
+      ManagedPolicyArns: 
+          - !Ref NirmataRolePolicy
+      Description: "Assume role Created By Nirmata"
+      RoleName: "NirmataAssumeRole"
+Outputs:
+  Role:
+    Value: !GetAtt NirmataAssumeRole.Arn
