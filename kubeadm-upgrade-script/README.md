@@ -14,7 +14,7 @@
 3.  add excute permission to script.\
     `chmod +x kube-upgrade.sh`
 4.  run the script.
-    - Pass node name as parameter argument with script if Node name is mentioned different with Kubernetes.\ 
+    - Pass node name as parameter argument with script if Node name is mentioned different with Kubernetes. \ 
     `./kube-upgrade.sh <node-name>`
 5.  Script will ask you for follow values to enter.
     - Pass kubernetes version you wants to upgrade to. (example: 1.22.x)
