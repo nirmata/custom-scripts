@@ -1,0 +1,13 @@
+You can run this script as a kubernetes job or cronjob.  See cronjob-yaml for an example K8 cronjob implementation.  You should be able to install it with "kubectl -n nirmata apply -f cronjob-yaml".
+
+Note that you will need to change the namespace in the above command and the yaml files in cronjob-yaml if your namespace is not nirmata.
+
+Also you need to edit the cronjob-yaml/cronjob-nirmata-test.yaml file to:
+- use the right smtp server
+- use your email address
+- use your username
+- use your password
+
+I recommend setting schedule: to "0 0 0 0 0" for testing.  Just be sure not to leave it running like that for long.
+
+Finally you''l want to remove --always-email once you are sure things work.
