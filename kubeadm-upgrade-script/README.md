@@ -3,7 +3,7 @@
 ### This script will help you to upgrade your HA (High available) or Normal kubernetes cluster.
 
 #### NOTE: 
-    - This script works only on CentOS 7 or above OS.
+    - This script works only on CentOS, REHL, Fedora, Ubuntu, Debian, HypriotOS, Mint.
     - The upgrade procedure on control plane nodes should be executed one node at a time. Pick a control plane node that you wish to upgrade first.
     - Pass node name as parameter argument with script if Node name is mentioned different with Kubernetes. 
 
@@ -22,6 +22,7 @@
     - Pass True/False
       - `False` Incase you are executing this script on your Primary Master/Control Plane node.
       - `True` Incase you are executing this script on Additional Master/Control Plane nodes or Worker Nodes.
+    - Pass `Y or N` to confirm and start upgrade activity.
   
 #### Screenshot :
 ![Screenshot](./upgrade-kube-input-screenshot.png)
