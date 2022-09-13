@@ -7,14 +7,14 @@
 #### NOTE: Pass node name as parameter argument with script if Node name is mentioned different with Kubernetes. 
 
 #### Steps:
-1. Clone / Download Script from repo.
+1. Clone/Download Script from repo.\
     `git clone https://github.com/nirmata/custom-scripts.git `
-2.  navigate to kubeadm-upgrade-script folder
+2.  navigate to kubeadm-upgrade-script folder\
     `cd kubeadm-upgrade-script`
-3.  add excute permission to script.
+3.  add excute permission to script.\
     `chmod +x kube-upgrade.sh`
 4.  run the script.
-    - Pass node name as parameter argument with script if Node name is mentioned different with Kubernetes. 
+    - Pass node name as parameter argument with script if Node name is mentioned different with Kubernetes.\ 
     `./kube-upgrade.sh <node-name>`
 5.  Script will ask you for follow values to enter.
     - Pass kubernetes version you wants to upgrade to. (example: 1.22.x)
