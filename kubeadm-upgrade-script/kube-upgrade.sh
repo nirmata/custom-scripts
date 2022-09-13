@@ -1,7 +1,7 @@
 #!/bin/bash
 # Upgrading K8s Control plane to any next version
 # Author:    Mustafa Challawala
-# Repo:      
+# Repo:      https://github.com/nirmata/custom-scripts/tree/master/kubeadm-upgrade-script
 # Create on: 2022-Sep-10
 
 
