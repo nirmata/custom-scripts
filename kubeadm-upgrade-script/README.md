@@ -2,8 +2,8 @@
 
 ### This script will help you to upgrade your HA (High available) or Normal kubernetes cluster.
 
-> #### NOTE: 
-    -  This script works only on CentOS 7 or above OS.
+#### NOTE: 
+    - This script works only on CentOS 7 or above OS.
     - The upgrade procedure on control plane nodes should be executed one node at a time. Pick a control plane node that you wish to upgrade first.
     - Pass node name as parameter argument with script if Node name is mentioned different with Kubernetes. 
 
@@ -15,8 +15,8 @@
 3.  add excute permission to script.\
     `chmod +x kube-upgrade.sh`
 4.  run the script.
-    - Pass node name as parameter argument with script if Node name is mentioned different with Kubernetes.\n
-    ```bash ./kube-upgrade.sh <node-name> ```
+    - Pass node name as parameter argument with script if Node name is mentioned different with Kubernetes.\
+        `./kube-upgrade.sh <node-name> `
 5.  Script will ask you for follow values to enter.
     - Pass kubernetes version you wants to upgrade to. (example: 1.22.x)
     - Pass True/False
