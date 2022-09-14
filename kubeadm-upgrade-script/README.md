@@ -1,4 +1,4 @@
-# Kubeadm upgrade Script
+# Upgrade Kubernetes Control Plane and worker Node via Bash Script
 
 ### This script will help you to upgrade your HA (High available) or Normal kubernetes cluster.
 
