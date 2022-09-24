@@ -4,9 +4,8 @@
 # Repo:      https://github.com/nirmata/custom-scripts/tree/master/kubeadm-upgrade-script
 # Create on: 2022-Sep-10
 
-
 # NOTE: The upgrade procedure on control plane nodes should be executed one node at a time. Pick a control plane node that you wish to upgrade first.
-# NOTE: Pass node name as parameter argument with script if Node name is mentioned different with Kubernetes. 
+# NOTE: Pass node name as parameter argument with script if Node name is mentioned different with Kubernetes.
 
 read -p "Enter kuberentes version which you want to upgrade to (example: 1.22.x): " VERSION
 
@@ -23,58 +22,57 @@ KUBEADM_VERSION=$VERSION
 KUBELET_VERSION=$VERSION
 KUBECTL_VERSION=${KUBELET_VERSION}
 
-
-install_kubernetes_bineries(){
+install_kubernetes_bineries() {
 	if cat /etc/*release | grep ^NAME | grep CentOS; then
-    echo "==============================================="
-    echo "Installing packages kubeadm-${KUBEADM_VERSION}, kubelet-${KUBELET_VERSION}, kubectl-${KUBECTL_VERSION}  on CentOS"
-    echo "==============================================="
-    sudo yum install -y kubeadm-${KUBEADM_VERSION}-0 kubelet-${KUBELET_VERSION}-0 kubectl-${KUBECTL_VERSION}-0 --disableexcludes=kubernetes
- elif cat /etc/*release | grep ^NAME | grep Red; then
-    echo "==============================================="
-    echo "Installing packages kubeadm-${KUBEADM_VERSION}, kubelet-${KUBELET_VERSION}, kubectl-${KUBECTL_VERSION} on RedHat"
-    echo "==============================================="
-    sudo yum install -y kubeadm-${KUBEADM_VERSION}-0 kubelet-${KUBELET_VERSION}-0 kubectl-${KUBECTL_VERSION}-0 --disableexcludes=kubernetes
- elif cat /etc/*release | grep ^NAME | grep Fedora; then
-    echo "================================================"
-    echo "Installing packages kubeadm-${KUBEADM_VERSION}, kubelet-${KUBELET_VERSION}, kubectl-${KUBECTL_VERSION} on Fedorea"
-    echo "================================================"
-    sudo yum install -y kubeadm-${KUBEADM_VERSION}-0 kubelet-${KUBELET_VERSION}-0 kubectl-${KUBECTL_VERSION}-0 --disableexcludes=kubernetes
- elif cat /etc/*release | grep ^NAME | grep Ubuntu; then
-    echo "==============================================="
-    echo "Installing packages kubeadm-${KUBEADM_VERSION}, kubelet-${KUBELET_VERSION}, kubectl-${KUBECTL_VERSION} on Ubuntu"
-    echo "==============================================="
-    apt-mark unhold kubeadm kubelet kubectl && apt-get update
-    apt-get install -y kubeadm=${KUBEADM_VERSION}-00 kubelet=${KUBELET_VERSION}-00 kubectl=${KUBECTL_VERSION}-00
-    apt-mark hold kubeadm kubelet kubectl
- elif cat /etc/*release | grep ^NAME | grep Debian ; then
-    echo "==============================================="
-    echo "Installing packages kubeadm-${KUBEADM_VERSION}, kubelet-${KUBELET_VERSION}, kubectl-${KUBECTL_VERSION} on Debian"
-    echo "==============================================="
-    apt-mark unhold kubeadm kubelet kubectl && apt-get update
-    apt-get install -y kubeadm=${KUBEADM_VERSION}-00 kubelet=${KUBELET_VERSION}-00 kubectl=${KUBECTL_VERSION}-00
-    apt-mark hold kubeadm kubelet kubectl
- elif cat /etc/*release | grep ^NAME | grep Mint ; then
-    echo "============================================="
-    echo "Installing packages kubeadm-${KUBEADM_VERSION}, kubelet-${KUBELET_VERSION}, kubectl-${KUBECTL_VERSION} on Mint"
-    echo "============================================="
-    apt-mark unhold kubeadm kubelet kubectl && apt-get update
-    apt-get install -y kubeadm=${KUBEADM_VERSION}-00 kubelet=${KUBELET_VERSION}-00 kubectl=${KUBECTL_VERSION}-00
-    apt-mark hold kubeadm kubelet kubectl
- elif cat /etc/*release | grep ^NAME | grep Knoppix ; then
-    echo "================================================="
-    echo "Installing packages kubeadm-${KUBEADM_VERSION}, kubelet-${KUBELET_VERSION}, kubectl-${KUBECTL_VERSION} on Kanoppix"
-    echo "================================================="
-    apt-mark unhold kubeadm kubelet kubectl && apt-get update
-    apt-get install -y kubeadm=${KUBEADM_VERSION}-00 kubelet=${KUBELET_VERSION}-00 kubectl=${KUBECTL_VERSION}-00
-    apt-mark hold kubeadm kubelet kubectl
- else
-    echo "OS NOT DETECTED, couldn't install packages"
-    exit 1;
- fi
+		echo "==============================================="
+		echo "Installing packages kubeadm-${KUBEADM_VERSION}, kubelet-${KUBELET_VERSION}, kubectl-${KUBECTL_VERSION}  on CentOS"
+		echo "==============================================="
+		sudo yum install -y kubeadm-${KUBEADM_VERSION}-0 kubelet-${KUBELET_VERSION}-0 kubectl-${KUBECTL_VERSION}-0 --disableexcludes=kubernetes
+	elif cat /etc/*release | grep ^NAME | grep Red; then
+		echo "==============================================="
+		echo "Installing packages kubeadm-${KUBEADM_VERSION}, kubelet-${KUBELET_VERSION}, kubectl-${KUBECTL_VERSION} on RedHat"
+		echo "==============================================="
+		sudo yum install -y kubeadm-${KUBEADM_VERSION}-0 kubelet-${KUBELET_VERSION}-0 kubectl-${KUBECTL_VERSION}-0 --disableexcludes=kubernetes
+	elif cat /etc/*release | grep ^NAME | grep Fedora; then
+		echo "================================================"
+		echo "Installing packages kubeadm-${KUBEADM_VERSION}, kubelet-${KUBELET_VERSION}, kubectl-${KUBECTL_VERSION} on Fedorea"
+		echo "================================================"
+		sudo yum install -y kubeadm-${KUBEADM_VERSION}-0 kubelet-${KUBELET_VERSION}-0 kubectl-${KUBECTL_VERSION}-0 --disableexcludes=kubernetes
+	elif cat /etc/*release | grep ^NAME | grep Ubuntu; then
+		echo "==============================================="
+		echo "Installing packages kubeadm-${KUBEADM_VERSION}, kubelet-${KUBELET_VERSION}, kubectl-${KUBECTL_VERSION} on Ubuntu"
+		echo "==============================================="
+		apt-mark unhold kubeadm kubelet kubectl && apt-get update
+		apt-get install -y kubeadm=${KUBEADM_VERSION}-00 kubelet=${KUBELET_VERSION}-00 kubectl=${KUBECTL_VERSION}-00
+		apt-mark hold kubeadm kubelet kubectl
+	elif cat /etc/*release | grep ^NAME | grep Debian; then
+		echo "==============================================="
+		echo "Installing packages kubeadm-${KUBEADM_VERSION}, kubelet-${KUBELET_VERSION}, kubectl-${KUBECTL_VERSION} on Debian"
+		echo "==============================================="
+		apt-mark unhold kubeadm kubelet kubectl && apt-get update
+		apt-get install -y kubeadm=${KUBEADM_VERSION}-00 kubelet=${KUBELET_VERSION}-00 kubectl=${KUBECTL_VERSION}-00
+		apt-mark hold kubeadm kubelet kubectl
+	elif cat /etc/*release | grep ^NAME | grep Mint; then
+		echo "============================================="
+		echo "Installing packages kubeadm-${KUBEADM_VERSION}, kubelet-${KUBELET_VERSION}, kubectl-${KUBECTL_VERSION} on Mint"
+		echo "============================================="
+		apt-mark unhold kubeadm kubelet kubectl && apt-get update
+		apt-get install -y kubeadm=${KUBEADM_VERSION}-00 kubelet=${KUBELET_VERSION}-00 kubectl=${KUBECTL_VERSION}-00
+		apt-mark hold kubeadm kubelet kubectl
+	elif cat /etc/*release | grep ^NAME | grep Knoppix; then
+		echo "================================================="
+		echo "Installing packages kubeadm-${KUBEADM_VERSION}, kubelet-${KUBELET_VERSION}, kubectl-${KUBECTL_VERSION} on Kanoppix"
+		echo "================================================="
+		apt-mark unhold kubeadm kubelet kubectl && apt-get update
+		apt-get install -y kubeadm=${KUBEADM_VERSION}-00 kubelet=${KUBELET_VERSION}-00 kubectl=${KUBECTL_VERSION}-00
+		apt-mark hold kubeadm kubelet kubectl
+	else
+		echo "OS NOT DETECTED, couldn't install packages"
+		exit 1
+	fi
 }
 
-execute_upgrade(){
+execute_upgrade() {
 	echo "==============================================="
 	echo -e "\e[1;32m Starting upgrade...\n"
 	echo "==============================================="
@@ -128,7 +126,7 @@ execute_upgrade(){
 		echo -e "Enter Boolean value true if you are upgrading Additional Control Plane Node...."
 		echo -e "Enter Boolean value false if you are upgrading 1st Control Plane Node...."
 		echo -e "Note: This Script is not used to upgrade worker Nodes....."
-    	exit;
+		exit
 	fi
 	#
 	# Restarting the kubelet
@@ -143,26 +141,25 @@ execute_upgrade(){
 	echo -e "\n \e[1;32m Control plane ${HOSTNAME} \e[32msuccessfuly\e[0m upgraded\n"
 }
 
-if [ -z $VERSION -a -z $IS_ADDITIONAL_CONTROL_PLANE ]
-  then
-  	echo -e ">Enter kuberentes version which you want to upgrade to...."
-  	echo -e ">Enter Boolean value true if you are upgrading Additional Control Plane Node/ Worker Nodes...."
-		echo -e ">Enter Boolean value false if you are upgrading 1st Control Plane Node...."
-    exit;
+if [ -z $VERSION -a -z $IS_ADDITIONAL_CONTROL_PLANE ]; then
+	echo -e ">Enter kuberentes version which you want to upgrade to...."
+	echo -e ">Enter Boolean value true if you are upgrading Additional Control Plane Node/ Worker Nodes...."
+	echo -e ">Enter Boolean value false if you are upgrading 1st Control Plane Node...."
+	exit
 else
 	echo "==============================================="
 	read -p ">\e[93mWants to Start upgrade.... (y/n)?" choice
-	case "$choice" in 
-  	y|Y ) 
-			execute_upgrade
-			;;
-  	n|N ) 
-			echo -e ">\e[1;91mCanceled upgrade" 
-			exit 1
-			;;
-  	* ) 
-			echo "invalid"
-			exit 1
-			;;
-	esac	
+	case "$choice" in
+	y | Y)
+		execute_upgrade
+		;;
+	n | N)
+		echo -e ">\e[1;91mCanceled upgrade"
+		exit 1
+		;;
+	*)
+		echo "invalid"
+		exit 1
+		;;
+	esac
 fi
