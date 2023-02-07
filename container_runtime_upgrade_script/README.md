@@ -12,8 +12,8 @@
 2.  navigate to container_runtime_upgrade_script folder\
     `cd custom-scripts/container_runtime_upgrade_script`
 3.  add excute permission to script.\
-    `chmod +x container_runtime_upgrade_script`
+    `chmod +x container_runtime_upgrade.sh`
 4.  run the script.
-        `./container_runtime_upgrade_script`
+        `./container_runtime_upgrade.sh`
 
 ### Now after upgradation of cluster/nodes to v1.24 or later version, we should see the containerd as a container runtime.
