@@ -10,7 +10,7 @@
 1. Clone/Download Script from repo.\
     `git clone https://github.com/nirmata/custom-scripts.git `
 2.  navigate to container_runtime_upgrade_script folder\
-    `cd container_runtime_upgrade_script`
+    `cd custom-scripts/container_runtime_upgrade_script`
 3.  add excute permission to script.\
     `chmod +x container_runtime_upgrade_script`
 4.  run the script.
