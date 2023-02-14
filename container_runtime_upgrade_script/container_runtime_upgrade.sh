@@ -5,6 +5,8 @@ echo "==============================================="
 echo "Checking if containerd is installed"
 echo "==============================================="
 if ! command -v containerd > /dev/null; then
+  echo "Containerd is already installed"
+else
   echo "Containerd is not installed, installing now..."
   # install containerd based on the OS
   if [ -f /etc/debian_version ]; then
