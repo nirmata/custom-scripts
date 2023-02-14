@@ -45,7 +45,8 @@ echo "==============================================="
 echo "Checking if Docker is up-to-date"
 echo "==============================================="
 current_version=$(sudo docker version --format '{{.Client.Version}}')
-latest_version=$(curl --silent https://download.docker.com/linux/static/stable/x86_64/ | grep -o "docker-[0-9.]*\.tgz" | sort -V | tail -n 1 | cut -d '-' -f 2 | cut -d '.' -f 1,2)
+latest_version=$(curl --silent https://download.docker.com/linux/static/stable/x86_64/ | grep -o "docker-[0-9.]*\.tgz" | sort -V | tail -n 1 | cut -d '-' -f 2 | cut -d '.' -f 1-3
+)
 if [ "$current_version" != "$latest_version" ]; then
   echo "Docker upgrade failed, current version: $current_version, latest version: $latest_version"
 else
