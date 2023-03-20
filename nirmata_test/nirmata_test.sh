@@ -9,7 +9,8 @@
 # Test Nirmata installation mainly mongodb. --nirmata
 #    Note this script considers any nirmata installation that isn't HA to be in warning.
 
-version=1.1.1
+# Update the script to show the correct status of mongodb pods when they are in RECOVERY/DOWN/STARTUP status
+version=1.1.3
 # Url of script for updates
 script_url='https://raw.githubusercontent.com/nirmata/k8_test/master/nirmata_test.sh'
 # Should we update
@@ -446,7 +447,13 @@ for mongo in $mongos; do
         warn "WiredTiger lookaside file is very large on $mongo. Consider increasing Mongodb memory."
     mongo_num=$((mongo_num + 1));
     mongo_stateStr_full=$(kubectl -n $mongo_ns exec $mongo $mongo_container -- sh -c 'echo "rs.status()" |mongo' 2>&1)
-    mongo_stateStr=$(echo $mongo_stateStr_full |grep stateStr)
+    if [[ $mongo = mongodb-0 ]]; then
+        mongo_stateStr=$(kubectl -n $mongo_ns exec $mongo $mongo_container -- sh -c 'echo "rs.status()" |mongo' 2>&1 | grep stateStr |awk 'NR==1{ print; }')
+    elif [[ $mongo = mongodb-1 ]]; then
+        mongo_stateStr=$(kubectl -n $mongo_ns exec $mongo $mongo_container -- sh -c 'echo "rs.status()" |mongo' 2>&1 | grep stateStr |awk 'NR==2{ print; }')
+    else
+        mongo_stateStr=$(kubectl -n $mongo_ns exec $mongo $mongo_container -- sh -c 'echo "rs.status()" |mongo' 2>&1 | grep stateStr |awk 'NR==3{ print; }')
+    fi
     if [[ $mongo_stateStr =~ RECOVERING || $mongo_stateStr =~ DOWN || $mongo_stateStr =~ STARTUP ]];then
         echo $mongo_stateStr_full
         if [[ $mongo_stateStr =~ RECOVERING ]];then warn "Detected recovering Mongodb from this node!"; mongo_error=1; fi
@@ -467,7 +474,7 @@ fi
 
 if [[ $mongo_masters -lt 1 ]]; then
     if [[ $mongo_num -eq 1 ]];then
-	    warn "No Mongo Master found!! (Assuming standalone)"
+            warn "No Mongo Master found!! (Assuming standalone)"
     else
         error "No Mongo Master found with multiple mongo nodes!!"
         mongo_error=1
@@ -491,7 +498,6 @@ zoo_num=0
 zoo_leader=""
 for zoo in $zoos; do
     curr_zoo=$(kubectl -n $zoo_ns exec $zoo -- sh -c "/opt/zookeeper-*/bin/zkServer.sh status" 2>&1|grep Mode)
-    
     # High node counts indicate a resource issue or a cleanup failure.
     zoo_node_count=$(kubectl exec $zoo -n $zoo_ns -- sh -c "echo srvr | nc localhost 2181" |grep Node.count: |awk '{ print $3; }')
     if [ $zoo_node_count -lt $zoo_node_max ];then
@@ -505,10 +511,9 @@ for zoo in $zoos; do
     if [ $zoo_latency -lt $zoo_latency_max ];then
         good $zoo node latency is $zoo_latency
     else
-        warn $zoo node count is $zoo_latency
-        kubectl exec $zoo -n $zoo_ns -- kubectl exec $zoo -n $zoo_ns -- sh -c "echo srvr | nc localhost 2181"
+        warn $zoo node latency is $zoo_latency
+        #kubectl exec $zoo -n $zoo_ns -- sh -c "echo srvr | nc localhost 2181"
     fi
-
     if [[  $curr_zoo =~ "leader" ]];then
         echo "$zoo is zookeeper leader"
         zoo_leader="$zoo_leader $zoo"
@@ -821,7 +826,7 @@ if [[ $(swapon -s | wc -l) -gt 1 ]] ;  then
         error "Found swap enabled!"
         echo Consider if you are having issues:
         echo "sed -i '/[[:space:]]*swap[[:space:]]*swap/d' /etc/fstab"
-	echo "swapoff -a"
+        echo "swapoff -a"
     fi
   else
     good No swap found
@@ -831,7 +836,7 @@ fi
 if type sestatus &>/dev/null;then
     if sestatus | grep "Current mode:" |grep -e enforcing ;then
         warn 'SELinux enabled'
-	sestatus
+        sestatus
         if [[ $fix_issues -eq 0 ]];then
             echo "Applying the following fixes"
             echo_cmd sed -i s/^SELINUX=.*/SELINUX=permissive/ /etc/selinux/config
@@ -913,7 +918,6 @@ if  systemctl is-active firewalld &>/dev/null ; then
     good firewalld is disabled
   fi
 
-
 #Test if systemd-resolved is running
 if  ! systemctl is-active systemd-resolved &>/dev/null ; then
     warn 'systemd-resolved service is not active! Either run "systemctl start systemd-resolved" or install the package and then run it.'
@@ -923,6 +927,7 @@ if  ! systemctl is-active systemd-resolved &>/dev/null ; then
   else
     good systemd-resolved is enabled
   fi
+
 
 #TODO check for proxy settings, how, what, why
 # Do we really need this has anyone complained?
