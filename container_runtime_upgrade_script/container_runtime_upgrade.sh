@@ -4,7 +4,7 @@
 echo "==============================================="
 echo "Checking if containerd is installed"
 echo "==============================================="
-if ! command -v containerd > /dev/null; then
+if command -v containerd &> /dev/null; then
   echo "Containerd is already installed"
 else
   echo "Containerd is not installed, installing now..."
