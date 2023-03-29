@@ -14,6 +14,6 @@
 3.  add execute permission to the script.\
     `chmod +x migrate_container_runtime.sh`
 4.  run the script.
-        `./migrate_container_runtime`
+        `./migrate_container_runtime.sh`
 
 ### Now after the upgradation of cluster/nodes to v1.24 or a later version, we should see the containerd as a container runtime.
