@@ -45,6 +45,12 @@ echo "========================================="
 sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml
 
 echo "========================================="
+echo "Set max_size argument for containerd logs"
+sudo sed -i '/\[plugins."io.containerd.grpc.v1.cri".containerd.default_runtime\]/a\ \ \ \ \ \ \ \ [plugins."io.containerd.grpc.v1.cri".containerd.default_runtime.logs]\n\ \ \ \ \ \ \ \ \ \ max_size = "100m"' /etc/containerd/config.toml
+echo "========================================="
+
+
+echo "========================================="
 		echo "Restart containerd to apply the changes"
 echo "========================================="
 sudo systemctl restart containerd
