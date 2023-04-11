@@ -126,7 +126,7 @@ echo "========================================="
 echo "Failed to restart containerd."
 echo "========================================="
 fi
-8:57
+
 #echo '{"exec-opts": ["native.cgroupdriver=systemd"]}' | sudo tee /etc/docker/daemon.json
 
 if [ -s "$FILENAME" ]; then
