@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 installjq() {
 
         # Check the operating system
@@ -38,6 +40,8 @@ installjq() {
 ## main
 
 FILENAME="/etc/docker/daemon.json"
+DOCKER_CONFIG="/etc/sysconfig/docker"
+SYSTEMD_SERVICE="/usr/lib/systemd/system/docker.service"
 
 if [[ -n "$(command -v jq)" ]]; then
     echo "jq is installed."
@@ -45,13 +49,73 @@ if [[ -n "$(command -v jq)" ]]; then
 else
     echo -e "\njq is not installed. Installing jq ...\n"
     installjq
+    echo "jq is installed successfully"
 fi
 
 
 echo "========================================="
-                echo "Configure Docker to use systemd"
+echo "Removing log driver configuration from /etc/sysconfig/docker"
+echo "========================================="
+if grep -q "^OPTIONS=.*--log-driver" "$DOCKER_CONFIG"; then
+    sed -i '/--log-driver/d' "$DOCKER_CONFIG"
+    echo "Removed log driver configuration from /etc/sysconfig/docker successfully"
+fi
+
 
 echo "========================================="
+echo "Updating log driver configuration in /etc/docker/daemon.json"
+echo "========================================="
+if [ -s "$FILENAME" ]; then
+        cp $FILENAME /etc/docker/daemon.json.bak
+        jq '. + {"log-driver": "json-file", "log-opts": {"max-size": "10m", "max-file": "10"}}' $FILENAME > /etc/docker/daemon.tmp && mv /etc/docker/daemon.tmp $FILENAME
+        echo "========================================="
+    echo "Checking if cgroupdriver option is already configured in the docker systemd service file"
+    echo "========================================="
+    if ! grep -q "native.cgroupdriver" $SYSTEMD_SERVICE; then
+    echo "========================================="
+        echo "As it's not configured, adding it to daemon.json file"
+        echo "========================================="
+        echo '{"exec-opts": ["native.cgroupdriver=systemd"]}' >> $FILENAME
+        echo "Updated log driver configuration in /etc/docker/daemon.json successfully"
+    fi
+else
+    sudo mkdir -p /etc/docker
+    echo '{"log-driver": "json-file", "log-opts": {"max-size": "10m", "max-file": "10"}, "exec-opts": ["native.cgroupdriver=systemd"]}' | sudo tee $FILENAME > /dev/null
+    echo "Updated log driver configuration in /etc/docker/daemon.json successfully"
+fi
+
+
+echo "========================================="
+echo "Reloading systemd configuration and restarting Docker daemon"
+echo "========================================="
+sudo systemctl daemon-reload
+sudo systemctl restart docker
+echo "Docker restarted successfully"
+
+echo "========================================="
+echo "checking for cgroupdriver opts in /usr/lib/systemd/system/docker.service"
+echo "========================================="
+if grep -q "native.cgroupdriver" $FILENAME; then
+    sudo sed -i '/native.cgroupdriver/d' $FILENAME
+fi
+
+echo "========================================="
+echo  "Updating cgroupdriver configuration in /etc/docker/daemon.json if it's not already set in docker.service file"
+echo "========================================="
+
+if ! grep -q "native.cgroupdriver" $SYSTEMD_SERVICE; then
+    cp $FILENAME /etc/docker/daemon.json.bak
+    jq '. + {"exec-opts": ["native.cgroupdriver=systemd"]}' $FILENAME > /etc/docker/daemon.tmp && mv /etc/docker/daemon.tmp $FILENAME
+fi
+
+echo "========================================="
+echo "Restarting Docker daemon again to apply changes"
+echo "========================================="
+sudo systemctl daemon-reload
+sudo systemctl restart docker
+echo "Docker restarted successfully"
+
+
 
 #echo '{"exec-opts": ["native.cgroupdriver=systemd"]}' | sudo tee /etc/docker/daemon.json
 
@@ -88,28 +152,9 @@ echo "========================================="
 echo "========================================="
   exit 1
 fi
-
-
-#echo "========================================="
-#                echo "Create the default config.toml file for containerd"
-#echo "========================================="
-#sudo containerd config default | sudo tee /etc/containerd/config.toml
-#
-#echo "========================================="
-#                echo "Remove the systemd_group configuration from the CRI plugin section"
-#echo "========================================="
-#sudo sed -i '/systemd_cgroup/d' /etc/containerd/config.toml
-#
-#echo "========================================="
-#                echo "Enable SystemdCgroup option in the Runc runtime section"
-#echo "========================================="
-#sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml
-#
-#echo "========================================="
-#echo "Set max_size argument for containerd logs"
-#sudo sed -i '/\[plugins."io.containerd.grpc.v1.cri".containerd.default_runtime\]/a\ \ \ \ \ \ \ \ [plugins."io.containerd.grpc.v1.cri".containerd.default_runtime.logs]\n\ \ \ \ \ \ \ \ \ \ max_size = "100m"' /etc/containerd/config.toml
-#echo "========================================="
-
+echo "========================================="
+  echo "Copying config.toml file"
+echo "========================================="
 cp config.toml /etc/containerd/config.toml
 chmod 644 /etc/containerd/config.toml
 
@@ -126,8 +171,6 @@ echo "========================================="
 echo "Failed to restart containerd."
 echo "========================================="
 fi
-
-#echo '{"exec-opts": ["native.cgroupdriver=systemd"]}' | sudo tee /etc/docker/daemon.json
 
 if [ -s "$FILENAME" ]; then
     cp $FILENAME /etc/docker/daemon.json.bak
