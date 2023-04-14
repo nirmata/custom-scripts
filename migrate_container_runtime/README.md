@@ -15,5 +15,7 @@
     `chmod +x migrate_container_runtime.sh`
 4.  run the script.
         `./migrate_container_runtime.sh`
+5.  run the update-kubelet-args.sh script. This will update the kubelet args needed for docker to containerd migration
+        `./update-kubelet-args.sh`
 
 ### Now after the upgradation of cluster/nodes to v1.24 or a later version, we should see the containerd as a container runtime.
