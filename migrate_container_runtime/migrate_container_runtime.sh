@@ -12,6 +12,7 @@ installjq() {
                 # Linux
                 if [[ -n "$(command -v yum)" ]]; then
                         # CentOS, RHEL, Fedora
+                        yum install epel-release -y
                         sudo yum install -y jq
                 elif [[ -n "$(command -v apt-get)" ]]; then
                         # Debian, Ubuntu, Mint
