@@ -15,10 +15,12 @@ $1 - Nirmata URL
 
 ```sh
 
-[root@saas delete-old-users]# ./delete-old-users.sh https://nirmata.io
+[root@saas delete-old-users]# ./list-users.sh https://nirmata.io
 Enter the Nirmata API token:
 
-
-
+-------------------------------------------------
+Generating the csv file with the list of users...
+-------------------------------------------------
+users.csv file generated successfully
 
 ```
