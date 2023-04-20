@@ -1,4 +1,4 @@
-This script is used to list the users from Nirmata with their name, id and configured IdentityProvider
+This script is used to list the users from Nirmata with their name, id and configured IdentityProvider. Sample csv file that get generated is provided in the repo for reference
 
 <ins>**Prerequisites:**</ins>
 
