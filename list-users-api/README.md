@@ -21,6 +21,7 @@ Enter the Nirmata API token:
 -------------------------------------------------
 Generating the csv file with the list of users...
 -------------------------------------------------
+
 users.csv file generated successfully
 
 ```
