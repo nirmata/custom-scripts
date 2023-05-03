@@ -12,7 +12,6 @@
 Current Kyverno Deployment Status
 =========================================
 Kubernetes Version: v1.25.4
-v1.24.1
 
 Kyverno Deployment Version
  - kyverno:v1.10.0-alpha.1
