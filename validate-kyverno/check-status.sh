@@ -1,5 +1,7 @@
 #!/bin/bash
 
+report() {
+
 k8s_version=$(kubectl get nodes --no-headers | awk '{print $5}' | uniq)
 k8s_version_tmp=$(kubectl get nodes --no-headers | awk '{print $5}' | uniq | sed 's/v//g')
 ky_deploy=$(kubectl get pods -n kyverno --no-headers | grep -v cleanup | wc -l)
@@ -100,6 +102,9 @@ echo "Pod Disruption Budget Deployed:"
 pdb_count=$(kubectl get pdb -n kyverno 2> /dev/null | wc -l)
 if [[ $pdb_count = 0 ]]; then
         echo "- No matching pdb found for Kyverno. It is recommended to deploy a pdb with minimum replica of 1"
+else
+        echo
+        kubectl get pdb -n kyverno
 fi
 echo
 echo "System Namespaces excluded in webhook"
@@ -116,3 +121,42 @@ echo "Memory and CPU consumption of Kyverno pods:"
 #echo "-------------------------------------------"
 echo "$(kubectl top pods -n kyverno)"
 echo
+echo "Collecting the manifests for cluster policies,Kyverno deployments and ConfigMaps"
+mkdir -p kyverno/{manifests,logs}
+
+kubectl get deploy,svc,cm -n kyverno -o yaml > kyverno/manifests/kyverno.yaml 2> /dev/null
+kubectl get validatingwebhookconfigurations kyverno-policy-validating-webhook-cfg kyverno-resource-validating-webhook-cfg -o yaml > kyverno/manifests/validatingwebhooks.yaml 2> /dev/null
+kubectl get mutatingwebhookconfigurations kyverno-policy-mutating-webhook-cfg kyverno-resource-mutating-webhook-cfg kyverno-verify-mutating-webhook-cfg -o yaml > kyverno/manifests/mutatingwebhooks.yaml 2> /dev/null
+kubectl get cpol -o yaml > kyverno/manifests/cpols.yaml 2> /dev/null
+
+echo " - Manifests are collected in \"kyverno/manifests\" folder"
+echo
+echo "Collecting the logs for all the Kyverno pods"
+
+for ipod in $(kubectl get pods -n kyverno --no-headers | awk '{ print $1}'); do kubectl logs $ipod -n kyverno > kyverno/logs/$ipod.log;done
+echo " - Logs are collected in \"kyverno/logs\" folder"
+
+echo
+echo "Verifying Kyverno Metrics"
+if kubectl get svc kyverno-svc-metrics -n kyverno >/dev/null 2>&1; then
+        #metrics_port=$(kubectl get svc kyverno-svc-metrics -n kyverno --no-headers | awk '{ print $5}')
+        echo "- Kyverno Metrics are exposed on this cluster"
+        echo
+        kubectl get svc kyverno-svc-metrics -n kyverno
+else
+        echo "- Kyverno Metrics are not exposed. It is recommended to expose Kyverno metrics!"
+fi
+echo
+count=$(kubectl get cpol 2> /dev/null| awk '{ print $1,$4}' | egrep -v 'true|NAME ACTION' | awk '{ print $1 }' | wc -l)
+echo "No of Policies in \"Not Ready\" State: $count"
+}
+
+rm -rf BaselineReport.txt kyverno
+report 2>&1 | tee -a BaselineReport.txt
+
+tar -cvf baselinereport.tar BaselineReport.txt kyverno 1> /dev/null
+if [[ $? = 0 ]]; then
+        echo -e "\nBaseline report \"baselinereport.tar\" generated successfully in the current directory"
+else
+        echo -e "\nSomething went wrong generating the baseline report. Please check!"
+fi
