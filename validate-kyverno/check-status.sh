@@ -93,7 +93,7 @@ done
 echo
 #echo "Kyverno Admission Webhooks:"
 #echo "---------------------------"
-echo "Kyverno ValidatingWebhook Deployed: "
+echo "Kyverno ValidatingWebhooks Deployed: "
 for k in $(kubectl get validatingwebhookconfigurations | grep ky | awk '{ print $1}'); do echo " - $k";done
 echo
 echo "Kyverno MutatingWebhooks Deployed: "
