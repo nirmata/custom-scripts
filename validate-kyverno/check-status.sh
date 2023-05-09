@@ -48,30 +48,30 @@ fi
 echo "Cloud Provider/Infrastructure: $cloudprovider"
 #echo "---------------------------"
 echo
-echo "Top objects in etcd"
+echo "Top objects in etcd:"
 #echo "---------------------------"
 if [[ $k8s_version_tmp > 1.22.0 ]]; then
         # echo " - Objects in ETCD:"
         # for k in $()
-        kubectl get --raw=/metrics | grep apiserver_storage_objects |awk '$2>100' |sort -g -k 2
+        kubectl get --raw=/metrics 2> /dev/null | grep apiserver_storage_objects |awk '$2>100' |sort -g -k 2
         #do
         #       echo "   - $k"
         #done
 else
         echo "- Objects in ETCD:"
         #for p in $()
-        kubectl get --raw=/metrics | grep etcd_object_counts |awk '$2>100' |sort -g -k 2
+        kubectl get --raw=/metrics 2> /dev/null | grep etcd_object_counts |awk '$2>100' |sort -g -k 2
         #do
         #       echo "   - $p"
         #done
 fi
 echo
-no_of_kyreplicas=$(kubectl get pods -n kyverno --no-headers | grep -v cleanup | wc -l)
-
+no_of_kyreplicas=$(kubectl get pods -n kyverno  --no-headers | egrep -v 'background-controller|cleanup-controller|reports-controller' | wc -l)
+echo "Kyverno Replicas:"
 if [[ $no_of_kyreplicas -lt 3 ]]; then
-        echo "$no_of_kyreplicas replicas of Kyverno found. It is recommended to deploy kyverno in HA Mode with 3 replicas"
+        echo " - $no_of_kyreplicas replica of Kyverno found. It is recommended to deploy kyverno in HA Mode with 3 replicas"
 else
-        echo "No of Kyverno replicas: $no_of_kyreplicas"
+        echo " - $no_of_kyreplicas replicas of Kyverno found"
 fi
 #echo "------------------------"
 #echo "Kyverno Deployment Customization: ==============="
@@ -119,7 +119,12 @@ echo
 #echo "-------------------------------------------"
 echo "Memory and CPU consumption of Kyverno pods:"
 #echo "-------------------------------------------"
-echo "$(kubectl top pods -n kyverno)"
+metrics_count=$(kubectl get deploy metrics-server -n kube-system --no-headers 2> /dev/null | wc -l)
+if [[ $metrics_count = 0 ]]; then
+        echo " - Metrics server not installed. Cannot pull the memory and CPU consumption of Kyverno Pods"
+else
+kubectl top pods -n kyverno
+fi
 echo
 echo "Collecting the manifests for cluster policies,Kyverno deployments and ConfigMaps"
 mkdir -p kyverno/{manifests,logs}
