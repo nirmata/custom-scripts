@@ -11,41 +11,60 @@ $ ./kyverno-baseline.sh
 =========================================
 Current Kyverno Deployment Status
 =========================================
-Kubernetes Version: v1.23.12
+
+Kubernetes Version: v1.23.17-eks-a59e1f0
 
 Kyverno Deployment Version
- - kyverno:v1.8.5
- - kyvernopre:v1.8.5
+ - kyverno-license-manager:v0.0.2
+ - kyverno:v1.9.2-n4k.nirmata.1
+ - kyvernopre:v1.9.2-n4k.nirmata.1
+ - kyverno-license-manager:v0.0.2
+ - cleanup-controller:v1.9.2-n4k.nirmata.1
 
 Cluster Size Details
- - Number of Nodes in the Cluster: 2
- - Number of Pods in the Cluster: 22
+ - Number of Nodes in the Cluster: 12
+ - Number of Pods in the Cluster: 154
 
-Total Number of Kyverno ClusterPolicies in the Cluster: 17
-Cloud Provider/Infrastructure: Other
+Total Number of Kyverno ClusterPolicies in the Cluster: 37
+Cloud Provider/Infrastructure: AWS
 
 Top objects in etcd:
 
 Kyverno Replicas:
- - 1 replica of Kyverno found. It is recommended to deploy kyverno in HA Mode with 3 replicas
+ - 3 replicas of Kyverno found
 
 Kyverno Pod status:
-NAME                       READY   STATUS    RESTARTS      AGE
-kyverno-7b9bfd4cd8-tktbp   1/1     Running   5 (28h ago)   3d22h
+NAME                                         READY   STATUS    RESTARTS   AGE
+kyverno-ccfc87875-5xdq2                      2/2     Running   0          4d3h
+kyverno-ccfc87875-7gqcv                      2/2     Running   0          4d3h
+kyverno-ccfc87875-xqqjr                      2/2     Running   0          4d3h
+kyverno-cleanup-controller-5b8c57465-d9sl9   1/1     Running   0          4d3h
 
 Kyverno CRD's:
  - admissionreports.kyverno.io
  - backgroundscanreports.kyverno.io
+ - cleanuppolicies.kyverno.io
  - clusteradmissionreports.kyverno.io
  - clusterbackgroundscanreports.kyverno.io
+ - clustercleanuppolicies.kyverno.io
  - clusterpolicies.kyverno.io
  - clusterpolicyreports.wgpolicyk8s.io
+ - clusterreportchangerequests.kyverno.io
  - generaterequests.kyverno.io
+ - kyvernoadapters.security.nirmata.io
+ - kyvernoes.security.nirmata.io
+ - kyvernooperators.security.nirmata.io
+ - openshiftkyvernooperators.operator.nirmata.io
  - policies.kyverno.io
+ - policyexceptions.kyverno.io
  - policyreports.wgpolicyk8s.io
+ - reportchangerequests.kyverno.io
  - updaterequests.kyverno.io
 
 Kyverno ValidatingWebhook Deployed:
+ - kyverno-cleanup-validating-webhook-cfg
+ - kyverno-exception-validating-webhook-cfg
+ - kyverno-operator-validating-webhook-configuration
  - kyverno-policy-validating-webhook-cfg
  - kyverno-resource-validating-webhook-cfg
 
@@ -55,13 +74,19 @@ Kyverno MutatingWebhooks Deployed:
  - kyverno-verify-mutating-webhook-cfg
 
 Pod Disruption Budget Deployed:
-- No matching pdb found for Kyverno. It is recommended to deploy a pdb with minimum replica of 1
+
+NAME      MIN AVAILABLE   MAX UNAVAILABLE   ALLOWED DISRUPTIONS   AGE
+kyverno   1               N/A               2                     4d22h
 
 System Namespaces excluded in webhook
 - "kyverno"
 
 Memory and CPU consumption of Kyverno pods:
- - Metrics server not installed. Cannot pull the memory and CPU consumption of Kyverno Pods
+NAME                                         CPU(cores)   MEMORY(bytes)
+kyverno-ccfc87875-5xdq2                      19m          143Mi
+kyverno-ccfc87875-7gqcv                      115m         253Mi
+kyverno-ccfc87875-xqqjr                      19m          146Mi
+kyverno-cleanup-controller-5b8c57465-d9sl9   3m           24Mi
 
 Collecting the manifests for cluster policies,Kyverno deployments and ConfigMaps
  - Manifests are collected in "kyverno/manifests" folder
@@ -72,8 +97,8 @@ Collecting the logs for all the Kyverno pods
 Verifying Kyverno Metrics
 - Kyverno Metrics are exposed on this cluster
 
-NAME                  TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE
-kyverno-svc-metrics   ClusterIP   10.96.32.181   <none>        8000/TCP   3d22h
+NAME                  TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)    AGE
+kyverno-svc-metrics   ClusterIP   172.20.188.180   <none>        8000/TCP   4d22h
 
 No of Policies in "Not Ready" State: 0
 
