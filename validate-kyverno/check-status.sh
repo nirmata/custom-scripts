@@ -11,6 +11,7 @@ echo
 echo "========================================="
 echo "Current Kyverno Deployment Status        "
 echo "========================================="
+echo
 echo "Kubernetes Version: $k8s_version"
 echo
 echo "Kyverno Deployment Version"
