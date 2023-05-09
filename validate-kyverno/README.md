@@ -6,6 +6,8 @@
 
 #### Usage: 
 ```
+$ ./kyverno-baseline.sh
+
 =========================================
 Current Kyverno Deployment Status
 =========================================
@@ -19,17 +21,17 @@ Cluster Size Details
  - Number of Nodes in the Cluster: 2
  - Number of Pods in the Cluster: 22
 
-Total Number of Kyverno ClusterPolicies in the Cluster: 0
+Total Number of Kyverno ClusterPolicies in the Cluster: 17
 Cloud Provider/Infrastructure: Other
 
-Top objects in etcd
-Error from server (NotFound): the server could not find the requested resource
+Top objects in etcd:
 
-1 replicas of Kyverno found. It is recommended to deploy kyverno in HA Mode with 3 replicas
+Kyverno Replicas:
+ - 1 replica of Kyverno found. It is recommended to deploy kyverno in HA Mode with 3 replicas
 
 Kyverno Pod status:
-NAME                       READY   STATUS    RESTARTS        AGE
-kyverno-7b9bfd4cd8-tktbp   1/1     Running   5 (3h17m ago)   2d22h
+NAME                       READY   STATUS    RESTARTS      AGE
+kyverno-7b9bfd4cd8-tktbp   1/1     Running   5 (28h ago)   3d22h
 
 Kyverno CRD's:
  - admissionreports.kyverno.io
@@ -59,13 +61,7 @@ System Namespaces excluded in webhook
 - "kyverno"
 
 Memory and CPU consumption of Kyverno pods:
-
-NAME                                             CPU(cores)   MEMORY(bytes)
-kyverno-admission-controller-6bd6bd6976-st86x    9m           103Mi
-kyverno-background-controller-55cd4dcb8f-njd9j   2m           61Mi
-kyverno-cleanup-controller-6fc556f69d-zn7wv      3m           25Mi
-kyverno-reports-controller-668c59f788-29778      2m           55Mi
-
+ - Metrics server not installed. Cannot pull the memory and CPU consumption of Kyverno Pods
 
 Collecting the manifests for cluster policies,Kyverno deployments and ConfigMaps
  - Manifests are collected in "kyverno/manifests" folder
@@ -77,7 +73,7 @@ Verifying Kyverno Metrics
 - Kyverno Metrics are exposed on this cluster
 
 NAME                  TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE
-kyverno-svc-metrics   ClusterIP   10.96.32.181   <none>        8000/TCP   2d22h
+kyverno-svc-metrics   ClusterIP   10.96.32.181   <none>        8000/TCP   3d22h
 
 No of Policies in "Not Ready" State: 0
 
