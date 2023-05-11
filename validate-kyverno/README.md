@@ -28,7 +28,13 @@ Cluster Size Details
 Total Number of Kyverno ClusterPolicies in the Cluster: 37
 Cloud Provider/Infrastructure: AWS
 
+Total size of the etcd database file physically allocated in bytes:
+etcd_db_total_size_in_bytes{endpoint="https://168.254.5.3:2379"} 4.964352e+06
+
 Top objects in etcd:
+# HELP apiserver_storage_objects [STABLE] Number of stored objects at the time of last check split by kind.
+# TYPE apiserver_storage_objects gauge
+apiserver_storage_objects{resource="events"} 472
 
 Kyverno Replicas:
  - 3 replicas of Kyverno found
