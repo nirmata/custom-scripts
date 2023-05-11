@@ -23,7 +23,7 @@ Kyverno Deployment Version
 
 Cluster Size Details
  - Number of Nodes in the Cluster: 12
- - Number of Pods in the Cluster: 154
+ - Number of Pods in the Cluster: 155
 
 Total Number of Kyverno ClusterPolicies in the Cluster: 37
 Cloud Provider/Infrastructure: AWS
@@ -35,10 +35,10 @@ Kyverno Replicas:
 
 Kyverno Pod status:
 NAME                                         READY   STATUS    RESTARTS   AGE
-kyverno-ccfc87875-5xdq2                      2/2     Running   0          4d3h
-kyverno-ccfc87875-7gqcv                      2/2     Running   0          4d3h
-kyverno-ccfc87875-xqqjr                      2/2     Running   0          4d3h
-kyverno-cleanup-controller-5b8c57465-d9sl9   1/1     Running   0          4d3h
+kyverno-ccfc87875-5xdq2                      2/2     Running   0          6d5h
+kyverno-ccfc87875-7gqcv                      2/2     Running   0          6d5h
+kyverno-ccfc87875-xqqjr                      2/2     Running   0          6d5h
+kyverno-cleanup-controller-5b8c57465-d9sl9   1/1     Running   0          6d5h
 
 Kyverno CRD's:
  - admissionreports.kyverno.io
@@ -76,17 +76,17 @@ Kyverno MutatingWebhooks Deployed:
 Pod Disruption Budget Deployed:
 
 NAME      MIN AVAILABLE   MAX UNAVAILABLE   ALLOWED DISRUPTIONS   AGE
-kyverno   1               N/A               2                     4d22h
+kyverno   1               N/A               2                     7d
 
 System Namespaces excluded in webhook
 - "kyverno"
 
 Memory and CPU consumption of Kyverno pods:
 NAME                                         CPU(cores)   MEMORY(bytes)
-kyverno-ccfc87875-5xdq2                      19m          143Mi
-kyverno-ccfc87875-7gqcv                      115m         253Mi
-kyverno-ccfc87875-xqqjr                      19m          146Mi
-kyverno-cleanup-controller-5b8c57465-d9sl9   3m           24Mi
+kyverno-ccfc87875-5xdq2                      23m          145Mi
+kyverno-ccfc87875-7gqcv                      58m          259Mi
+kyverno-ccfc87875-xqqjr                      17m          155Mi
+kyverno-cleanup-controller-5b8c57465-d9sl9   2m           24Mi
 
 Collecting the manifests for cluster policies,Kyverno deployments and ConfigMaps
  - Manifests are collected in "kyverno/manifests" folder
@@ -98,10 +98,38 @@ Verifying Kyverno Metrics
 - Kyverno Metrics are exposed on this cluster
 
 NAME                  TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)    AGE
-kyverno-svc-metrics   ClusterIP   172.20.188.180   <none>        8000/TCP   4d22h
+kyverno-svc-metrics   ClusterIP   172.20.188.180   <none>        8000/TCP   7d
 
 No of Policies in "Not Ready" State: 0
 
-Baseline report "baselinereport.tar" generated successfully in the current directory
+Total admission requests triggered in the last 24h:  311712
 
+Percentage of total incoming admission requests corresponding to resource creations:  0.36511525197187794
+
+
+Scraping Policies and Rule Counts from Prometheus
+
+
+Scraping Policy and Rule Execution from Prometheus
+
+
+Scraping Policy Rule Execution Latency from Prometheus
+
+
+Scraping Admission Review Latency from Prometheus
+
+
+Scraping Admission Requests Counts from Prometheus
+
+
+Scraping Policy Change Counts from Prometheus
+
+
+Scraping Client Queries from Prometheus
+
+
+All the raw Kyverno data scraped above is dumped in BaselineReport.txt
+
+
+Baseline report "baselinereport.tar" generated successfully in the current directory
 ```
