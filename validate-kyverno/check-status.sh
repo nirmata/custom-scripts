@@ -64,7 +64,6 @@ echo "Cloud Provider/Infrastructure: $cloudprovider"
 #echo "---------------------------"
 echo
 echo "Total size of the etcd database file physically allocated in bytes:"
-echo
 kubectl get --raw /metrics 2> /dev/null | grep "etcd_db_total_size_in_bytes" | grep -v "^#"
 echo
 echo "Top objects in etcd:"
