@@ -1,5 +1,19 @@
 #!/bin/bash
 
+urlencode() {
+    # urlencode <string>
+    local length="${#1}"
+    for (( i = 0; i < length; i++ )); do
+        local c="${1:i:1}"
+        case $c in
+            [a-zA-Z0-9.~_-]) printf "$c" ;;
+            *) printf '%%%02X' "'$c" ;;
+        esac
+    done
+}
+
+
+
 report() {
 
 k8s_version=$(kubectl get nodes --no-headers | awk '{print $5}' | uniq)
@@ -93,7 +107,7 @@ done
 echo
 #echo "Kyverno Admission Webhooks:"
 #echo "---------------------------"
-echo "Kyverno ValidatingWebhooks Deployed: "
+echo "Kyverno ValidatingWebhook Deployed: "
 for k in $(kubectl get validatingwebhookconfigurations | grep ky | awk '{ print $1}'); do echo " - $k";done
 echo
 echo "Kyverno MutatingWebhooks Deployed: "
@@ -139,7 +153,7 @@ echo " - Manifests are collected in \"kyverno/manifests\" folder"
 echo
 echo "Collecting the logs for all the Kyverno pods"
 
-for ipod in $(kubectl get pods -n kyverno --no-headers | awk '{ print $1}'); do kubectl logs $ipod -n kyverno > kyverno/logs/$ipod.log;done
+for ipod in $(kubectl get pods -n kyverno --no-headers | egrep -v 'background-controller|cleanup-controller|reports-controller'| awk '{ print $1}'); do kubectl logs $ipod -c kyverno -n kyverno > kyverno/logs/$ipod.log;done
 echo " - Logs are collected in \"kyverno/logs\" folder"
 
 echo
@@ -155,10 +169,64 @@ fi
 echo
 count=$(kubectl get cpol 2> /dev/null| awk '{ print $1,$4}' | egrep -v 'true|NAME ACTION' | awk '{ print $1 }' | wc -l)
 echo "No of Policies in \"Not Ready\" State: $count"
+echo
+
 }
 
 rm -rf BaselineReport.txt kyverno
 report 2>&1 | tee -a BaselineReport.txt
+
+prom_url=$(kubectl get ep -A | grep prometheus-operated | awk '{ print $3 }')
+
+query1="sum(increase(kyverno_admission_requests_total{}[24h]))"
+query2="sum(kyverno_admission_requests_total{resource_request_operation=\"create\"})/sum(kyverno_admission_requests_total{})"
+
+query1_encoded=$(urlencode $query1)
+
+query1_tmp=$(curl -s "http://$prom_url/api/v1/query?query=$query1_encoded" | jq -r ".data.result[].value[1]" | cut -d "." -f 1)
+
+echo -e "Total admission requests triggered in the last 24h:  $query1_tmp"
+echo
+
+query2_encoded=$(urlencode $query2)
+
+query2_tmp=$(curl -s "http://$prom_url/api/v1/query?query=$query2_encoded" | jq -r ".data.result[].value[1]")
+
+echo -e "Percentage of total incoming admission requests corresponding to resource creations:  $query2_tmp"
+
+svc_mntr_count=$(kubectl describe servicemonitor -A | grep kyverno | grep "app.kubernetes.io" | wc -l)
+
+echo
+
+if [[ $svc_mntr_count = 0 ]]; then
+       echo -e "\nCannot scrape Kyverno metrics from Prometheus as servicemonitor is missing"
+else
+
+       echo -e "\nScraping Policies and Rule Counts from Prometheus" | tee -a BaselineReport.txt
+       echo | tee -a BaselineReport.txt
+       curl -s http://$prom_url/api/v1/query?query=kyverno_policy_rule_info_total >> BaselineReport.txt
+       echo -e "\nScraping Policy and Rule Execution from Prometheus" | tee -a BaselineReport.txt
+       echo | tee -a BaselineReport.txt
+       curl -s http://$prom_url/api/v1/query?query=kyverno_policy_results_total >> BaselineReport.txt
+       echo -e "\nScraping Policy Rule Execution Latency from Prometheus" | tee -a BaselineReport.txt
+       echo | tee -a BaselineReport.txt
+       curl -s http://$prom_url/api/v1/query?query=kyverno_policy_execution_duration_seconds >> BaselineReport.txt
+       echo -e "\nScraping Admission Review Latency from Prometheus" | tee -a BaselineReport.txt
+       echo | tee -a BaselineReport.txt
+       curl -s http://$prom_url/api/v1/query?query=kyverno_admission_review_duration_seconds >> BaselineReport.txt
+       echo -e "\nScraping Admission Requests Counts from Prometheus" | tee -a BaselineReport.txt
+       echo | tee -a BaselineReport.txt
+       curl -s http://$prom_url/api/v1/query?query=kyverno_admission_requests_total >> BaselineReport.txt
+       echo -e "\nScraping Policy Change Counts from Prometheus" | tee -a BaselineReport.txt
+       echo | tee -a BaselineReport.txt
+       curl -s http://$prom_url/api/v1/query?query=kyverno_policy_changes_total >> BaselineReport.txt
+       echo -e "\nScraping Client Queries from Prometheus" | tee -a BaselineReport.txt
+       echo | tee -a BaselineReport.txt
+       curl -s http://$prom_url/api/v1/query?query=kyverno_client_queries_total >> BaselineReport.txt
+       echo | tee -a BaselineReport.txt
+       echo "All the raw Kyverno data scraped above is dumped in BaselineReport.txt"
+       echo
+fi
 
 tar -cvf baselinereport.tar BaselineReport.txt kyverno 1> /dev/null
 if [[ $? = 0 ]]; then
