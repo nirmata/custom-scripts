@@ -9,13 +9,15 @@
 #### Steps:
 1. Clone/Download Script from the repo.\
     `git clone https://github.com/nirmata/custom-scripts.git `
-2. Navigate to migrate_container_runtime folder\
-    `cd custom-scripts/migrate_container_runtime`
+2. Switch to 1.13.1 branch
+   `cd custom-scripts; git switch 1.13.1`
+3. Navigate to migrate_container_runtime folder\
+    `cd migrate_container_runtime`
 3. Add execute permission to the script.\
     `chmod +x migrate_container_runtime.sh`
-4. Run the script. Please note that this script has to be run all the nodes of clusters. The git repository has the updated `config.toml` file which gets copied to the node when you run this script.<br />
+5. Run the script. Please note that this script has to be run all the nodes of clusters. The git repository has the updated `config.toml` file which gets copied to the node when you run this script.<br />
         `./migrate_container_runtime.sh`
-5. Run the `update-kubelet-args.sh` script. Please note that this script must be run just once from anywhere you have kubectl access to the cluster. This will update the kubelet args needed for docker to containerd migration <br />
+6. Run the `update-kubelet-args.sh` script. Please note that this script must be run just once from anywhere you have kubectl access to the cluster. This will update the kubelet args needed for docker to containerd migration <br />
         `./update-kubelet-args.sh <cluster-name> <nirmata-url>`
 
-### Now after the upgradation of cluster/nodes to v1.24 or a later version, we should see the containerd as a container runtime.
+### Now once you upgrade the cluster (control plane and work nodes) to v1.24 or a later version, we should see the containerd as a container runtime.
