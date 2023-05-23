@@ -21,7 +21,7 @@ do
    docker pull ${NIRMATA_REPO_NAME}/nirmata/${nirmata_service}:${NIRMATA_TAG}
    echo "Tagging downloaded image ${NIRMATA_REPO_NAME}/nirmata/${nirmata_service}:${NIRMATA_TAG} to ${PRIVATE_REPO_NAME}/nirmata/${nirmata_service}:${NIRMATA_TAG}"
    docker tag ${NIRMATA_REPO_NAME}/nirmata/${nirmata_service}:${NIRMATA_TAG} ${PRIVATE_REPO_NAME}/nirmata/${nirmata_service}:${NIRMATA_TAG}
-   echo "Uploading ${PRIVATE_REPO_NAME}/nirmata/${nirmata_service}:${NIRMATA_TAG} to private repository ..."
+   echo "Uploading image ${PRIVATE_REPO_NAME}/nirmata/${nirmata_service}:${NIRMATA_TAG} to private repository ..."
    docker push ${PRIVATE_REPO_NAME}/nirmata/${nirmata_service}:${NIRMATA_TAG}
    echo
 done
@@ -30,7 +30,7 @@ echo "Pulling image ghcr.io/nirmata/kafka:3.3.2 from Nirmata repository ..."
 docker pull ghcr.io/nirmata/kafka:3.3.2
 echo "Tagging downloaded image ghcr.io/nirmata/kafka:3.3.2 to ${PRIVATE_REPO_NAME}/nirmata/kafka:3.3.2"
 docker tag ghcr.io/nirmata/kafka:3.3.2  ${PRIVATE_REPO_NAME}/nirmata/kafka:3.3.2
-echo "Uploading ${PRIVATE_REPO_NAME}/nirmata/kafka:3.3.2 to private repository ..."
+echo "Uploading image ${PRIVATE_REPO_NAME}/nirmata/kafka:3.3.2 to private repository ..."
 docker push ${PRIVATE_REPO_NAME}/nirmata/kafka:3.3.2
 
 echo
@@ -38,7 +38,7 @@ echo "Pulling image ghcr.io/nirmata/mongodb:5.0.15 from Nirmata repository ..."
 docker pull ghcr.io/nirmata/mongodb:5.0.15
 echo "Tagging downloaded image ghcr.io/nirmata/mongodb:5.0.15 to ${PRIVATE_REPO_NAME}/nirmata/mongodb:5.0.15"
 docker tag  ghcr.io/nirmata/mongodb:5.0.15 ${PRIVATE_REPO_NAME}/nirmata/mongodb:5.0.15
-echo "Uploading ${PRIVATE_REPO_NAME}/nirmata/mongodb:5.0.15 to private repository ..."
+echo "Uploading image ${PRIVATE_REPO_NAME}/nirmata/mongodb:5.0.15 to private repository ..."
 docker push ${PRIVATE_REPO_NAME}/nirmata/mongodb:5.0.15
 
 echo
@@ -46,7 +46,7 @@ echo "Pulling image ghcr.io/nirmata/mongo-k8s-sidecar:5.0.15 from Nirmata reposi
 docker pull ghcr.io/nirmata/mongo-k8s-sidecar:5.0.15
 echo "Tagging downloaded image ghcr.io/nirmata/mongo-k8s-sidecar:5.0.15 to ${PRIVATE_REPO_NAME}/nirmata/mongo-k8s-sidecar:5.0.15"
 docker tag  ghcr.io/nirmata/mongo-k8s-sidecar:5.0.15 ${PRIVATE_REPO_NAME}/nirmata/mongo-k8s-sidecar:5.0.15
-echo "Uploading ${PRIVATE_REPO_NAME}/nirmata/mongo-k8s-sidecar:5.0.15 to private repository ..."
+echo "Uploading image ${PRIVATE_REPO_NAME}/nirmata/mongo-k8s-sidecar:5.0.15 to private repository ..."
 docker push ${PRIVATE_REPO_NAME}/nirmata/mongo-k8s-sidecar:5.0.15
 
 echo
@@ -54,6 +54,6 @@ echo "Pulling image ghcr.io/nirmata/kubernetes-zookeeper:v3-zk3.6.3 from Nirmata
 docker pull ghcr.io/nirmata/kubernetes-zookeeper:v3-zk3.6.3
 echo "Tagging downloaded image ghcr.io/nirmata/kubernetes-zookeeper:v3-zk3.6.3 to ${PRIVATE_REPO_NAME}/nirmata/kubernetes-zookeeper:v3-zk3.6.3"
 docker tag ghcr.io/nirmata/kubernetes-zookeeper:v3-zk3.6.3 ${PRIVATE_REPO_NAME}/nirmata/kubernetes-zookeeper:v3-zk3.6.3
-echo "Uploading ${PRIVATE_REPO_NAME}/nirmata/kubernetes-zookeeper:v3-zk3.6.3 to private repository ..."
+echo "Uploading image ${PRIVATE_REPO_NAME}/nirmata/kubernetes-zookeeper:v3-zk3.6.3 to private repository ..."
 docker push ${PRIVATE_REPO_NAME}/nirmata/kubernetes-zookeeper:v3-zk3.6.3
 echo
