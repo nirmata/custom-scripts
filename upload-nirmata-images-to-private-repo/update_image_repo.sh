@@ -6,7 +6,7 @@ read -sp 'Enter private repository Password: ' PRIVATE_REPO_PASSWORD
 echo
 NIRMATA_REPO_NAME=ghcr.io
 NIRMATA_REPO_USERNAME=deployment
-NIRMATA_REPO_PASSWORD=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
+NIRMATA_REPO_PASSWORD=
 NIRMATA_TAG=4.8.1
 echo "login to Nirmata image repository $NIRMATA_REPO_NAME ..."
 docker login ${NIRMATA_REPO_NAME} -u ${NIRMATA_REPO_USERNAME} -p ${NIRMATA_REPO_PASSWORD}
