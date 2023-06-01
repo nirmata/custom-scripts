@@ -71,7 +71,7 @@ version = 2
       discard_unpacked_layers = false
       ignore_rdt_not_enabled_errors = false
       no_pivot = false
-      snapshotter = "native"
+      snapshotter = "overlayfs"
       [plugins."io.containerd.grpc.v1.cri".containerd.runtimes]
         [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc]
           base_runtime_spec = ""
@@ -155,10 +155,10 @@ version = 2
 ##    fs_type = ""
 ##    pool_name = ""
 ##    root_path = ""
-  [plugins."io.containerd.snapshotter.v1.native"]
-    root_path = ""
-##  [plugins."io.containerd.snapshotter.v1.overlayfs"]
+##  [plugins."io.containerd.snapshotter.v1.native"]
 ##    root_path = ""
+  [plugins."io.containerd.snapshotter.v1.overlayfs"]
+    root_path = ""
 ##    upperdir_label = false
 ##  [plugins."io.containerd.snapshotter.v1.zfs"]
 ##    root_path = ""
