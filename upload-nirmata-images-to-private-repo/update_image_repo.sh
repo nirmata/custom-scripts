@@ -3,10 +3,12 @@ echo
 read -p 'Enter private repository name: ' PRIVATE_REPO_NAME
 read -p 'Enter private repository username: ' PRIVATE_REPO_USERNAME
 read -sp 'Enter private repository Password: ' PRIVATE_REPO_PASSWORD
+read -sp 'Enter Nirmata repository Password: ' NIRMATA_REPO_PASSWORD
+
 echo
 NIRMATA_REPO_NAME=ghcr.io
 NIRMATA_REPO_USERNAME=deployment
-NIRMATA_REPO_PASSWORD=
+#NIRMATA_REPO_PASSWORD=
 NIRMATA_TAG=4.8.1
 echo "login to Nirmata image repository $NIRMATA_REPO_NAME ..."
 docker login ${NIRMATA_REPO_NAME} -u ${NIRMATA_REPO_USERNAME} -p ${NIRMATA_REPO_PASSWORD}
