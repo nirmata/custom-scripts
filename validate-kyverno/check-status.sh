@@ -151,6 +151,9 @@ kubectl get deploy,svc,cm -n kyverno -o yaml > kyverno/manifests/kyverno.yaml 2>
 kubectl get validatingwebhookconfigurations kyverno-policy-validating-webhook-cfg kyverno-resource-validating-webhook-cfg -o yaml > kyverno/manifests/validatingwebhooks.yaml 2> /dev/null
 kubectl get mutatingwebhookconfigurations kyverno-policy-mutating-webhook-cfg kyverno-resource-mutating-webhook-cfg kyverno-verify-mutating-webhook-cfg -o yaml > kyverno/manifests/mutatingwebhooks.yaml 2> /dev/null
 kubectl get cpol -o yaml > kyverno/manifests/cpols.yaml 2> /dev/null
+kubectl get policyreport -A -o yaml kyverno/manifests/policyreportyaml.yaml 2> /dev/null
+kubectl get policyreport -A kyverno/manifests/policyreport.yaml 2> /dev/null
+kubectl get crd -n kyverno -o yaml kyverno/manifests/crd.yaml 2> /dev/null
 
 echo " - Manifests are collected in \"kyverno/manifests\" folder"
 echo
