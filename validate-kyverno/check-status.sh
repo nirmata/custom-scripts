@@ -1,3 +1,4 @@
+$ cat check-status.sh
 #!/bin/bash
 
 urlencode() {
@@ -115,6 +116,11 @@ for k in $(kubectl get validatingwebhookconfigurations | grep ky | awk '{ print 
 echo
 echo "Kyverno MutatingWebhooks Deployed: "
 for t in $(kubectl get mutatingwebhookconfigurations | grep ky | awk '{ print $1}'); do echo " - $t";done
+echo
+for kycrd in $(kubectl get crd | egrep 'ky|wgp' | awk '{ print $1 }' | cut -d "." -f1)
+do
+        echo -e "\nFetching \"$kycrd\" for the cluster\n"; kubectl get $kycrd -A
+done
 echo
 echo "Pod Disruption Budget Deployed:"
 pdb_count=$(kubectl get pdb -n kyverno 2> /dev/null | wc -l)
