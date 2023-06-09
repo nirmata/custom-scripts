@@ -215,7 +215,7 @@ fi
 prom_url=$(kubectl get ep -A | grep prometheus-kube-prometheus-prometheus | awk '{ print $3 }' | cut -d "," -f 1)
 
 if [[ -z $prom_url ]]; then
-        echo -e "\nUnable to find Prometheus endpoint. Exiting...\n"
+        echo -e "\nUnable to fetch Kyverno metrics from Prometheus as the Prometheus endpoint is not found. Exiting...\n"
         exit 1
 fi
 
