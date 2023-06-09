@@ -202,8 +202,9 @@ if kubectl get servicemonitor -A | grep service-monitor-kyverno-service 1> /dev/
     tmp2=$(kubectl get servicemonitor -A | awk '/service-monitor-kyverno-service/ { system("kubectl describe servicemonitor " $2 " -n " $1) }' | grep -A1 "Match Names:" | tail -1)
     if [[ -z $tmp1 ]] && [[ -z $tmp2 ]]; then
             echo -e "\n---------------------------------------------------" | tee -a BaselineReport.txt
-            echo  "Prometheus ServiceMonitor for Kyverno not found!   " | tee -a BaselineReport.txt
+            echo  "Prometheus ServiceMonitor for Kyverno not found! Please install servicemonitor for Kyverno and try again   " | tee -a BaselineReport.txt
             echo -e "---------------------------------------------------\n" | tee -a BaselineReport.txt
+            exit 1
     else
             echo -e "\n---------------------------------------------------" | tee -a BaselineReport.txt
             echo "Prometheus ServiceMonitor for Kyverno found!" | tee -a BaselineReport.txt
