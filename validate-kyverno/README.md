@@ -4,7 +4,6 @@
     - A Kubernetes Cluster with Kyverno installed.
     - Kubectl access to the cluster.
     - A linux or Mac machine to execute the script.
-    - jq installed. 
 
 #### Usage: 
 ```
