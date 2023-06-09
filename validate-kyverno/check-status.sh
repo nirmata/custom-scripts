@@ -197,7 +197,7 @@ fi
 
 report 2>&1 | tee -a BaselineReport.txt
 
-if kubectl get servicemonitor -A | grep service-monitor-kyverno-service 1> /dev/null; then
+if kubectl get servicemonitor -A 2> /dev/null | grep service-monitor-kyverno-service 1> /dev/null; then
     tmp1=$(kubectl get servicemonitor -A | awk '/service-monitor-kyverno-service/ { system("kubectl describe servicemonitor " $2 " -n " $1) }' | grep -A5 "Match Labels:" | grep "app.kubernetes.io\/name:" | grep kyverno | awk '{ print $NF }')
     tmp2=$(kubectl get servicemonitor -A | awk '/service-monitor-kyverno-service/ { system("kubectl describe servicemonitor " $2 " -n " $1) }' | grep -A1 "Match Names:" | tail -1)
     if [[ -z $tmp1 ]] && [[ -z $tmp2 ]]; then
