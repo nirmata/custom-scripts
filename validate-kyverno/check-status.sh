@@ -184,10 +184,39 @@ echo
 
 }
 
+
+## main
+
 rm -rf BaselineReport.txt kyverno
+
+# Check the operating system
+if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
+  echo -e "\nScript cannot be run on a Windows machine. Exiting...\n"
+  exit 1
+fi
+
 report 2>&1 | tee -a BaselineReport.txt
 
-prom_url=$(kubectl get ep -A | grep prometheus-operated | awk '{ print $3 }')
+if kubectl get servicemonitor -A | grep service-monitor-kyverno-service 1> /dev/null; then
+    tmp1=$(kubectl get servicemonitor -A | awk '/service-monitor-kyverno-service/ { system("kubectl describe servicemonitor " $2 " -n " $1) }' | grep -A5 "Match Labels:" | grep "app.kubernetes.io\/name:" | grep kyverno | awk '{ print $NF }')
+    tmp2=$(kubectl get servicemonitor -A | awk '/service-monitor-kyverno-service/ { system("kubectl describe servicemonitor " $2 " -n " $1) }' | grep -A1 "Match Names:" | tail -1)
+    if [[ -z $tmp1 ]] && [[ -z $tmp2 ]]; then
+            echo -e "\n---------------------------------------------------" | tee -a BaselineReport.txt
+            echo  "Prometheus ServiceMonitor for Kyverno not found!   " | tee -a BaselineReport.txt
+            echo -e "---------------------------------------------------\n" | tee -a BaselineReport.txt
+    else
+            echo -e "\n---------------------------------------------------" | tee -a BaselineReport.txt
+            echo "Prometheus ServiceMonitor for Kyverno found!" | tee -a BaselineReport.txt
+            echo -e "---------------------------------------------------\n" | tee -a BaselineReport.txt
+    fi
+fi
+
+prom_url=$(kubectl get ep -A | grep prometheus-kube-prometheus-prometheus | awk '{ print $3 }' | cut -d "," -f 1)
+
+if [[ -z $prom_url ]]; then
+        echo -e "\nUnable to find Prometheus endpoint. Exiting...\n"
+        exit 1
+fi
 
 query1="sum(increase(kyverno_admission_requests_total{}[24h]))"
 query2="sum(kyverno_admission_requests_total{resource_request_operation=\"create\"})/sum(kyverno_admission_requests_total{})"
@@ -218,10 +247,10 @@ else
        curl -s http://$prom_url/api/v1/query?query=kyverno_policy_rule_info_total >> BaselineReport.txt
        echo -e "\nScraping Policy and Rule Execution from Prometheus" | tee -a BaselineReport.txt
        echo | tee -a BaselineReport.txt
-       curl -s http://$prom_url/api/v1/query?query=kyverno_policy_results_total >> BaselineReport.txt
+       curl -s http://$prom_url/api/v1/query?query=kyverno_policy_results_total | >> BaselineReport.txt
        echo -e "\nScraping Policy Rule Execution Latency from Prometheus" | tee -a BaselineReport.txt
        echo | tee -a BaselineReport.txt
-       curl -s http://$prom_url/api/v1/query?query=kyverno_policy_execution_duration_seconds >> BaselineReport.txt
+       curl -s http://$prom_url/api/v1/query?query=kyverno_policy_execution_duration_seconds  >> BaselineReport.txt
        echo -e "\nScraping Admission Review Latency from Prometheus" | tee -a BaselineReport.txt
        echo | tee -a BaselineReport.txt
        curl -s http://$prom_url/api/v1/query?query=kyverno_admission_review_duration_seconds >> BaselineReport.txt
