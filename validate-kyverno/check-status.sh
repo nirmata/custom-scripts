@@ -1,4 +1,3 @@
-$ cat check-status.sh
 #!/bin/bash
 
 urlencode() {
