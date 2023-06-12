@@ -1,13 +1,13 @@
 #!/bin/bash
 
-if [ $# -lt 1 ]; then
-    echo "Usage: $0 clustername"
+if [ $# -lt 2 ]; then
+    echo "Usage: <script> clustername <Nirmata-API-Token"
     echo ""
     echo "* clustername: Clustername in nirmata UI"
     echo ""
-    echo "Eg: $0 test-cluster"
+    echo "Eg: <script> test-cluster <Nirmata-API-Token>"
 else
-	TOKEN=<Add Nirmata API Token Here>
+	TOKEN=$2
 	NIRMATAURL=https://www.nirmata.io
 	CLUSTERNAME=$1
 	CLUSTERID=$(curl -s -H "Accept: application/json, text/javascript, */*; q=0.01" -H "Authorization: NIRMATA-API $TOKEN" -X GET "$NIRMATAURL/cluster/api/KubernetesCluster?fields=id,name" | jq -r ".[] | select( .name == \"$CLUSTERNAME\" ).id")
@@ -20,4 +20,3 @@ else
         	fi
     	done   
 fi
-
