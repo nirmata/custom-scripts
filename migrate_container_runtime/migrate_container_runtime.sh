@@ -12,7 +12,7 @@ installjq() {
                 # Linux
                 if [[ -n "$(command -v yum)" ]]; then
                         # CentOS, RHEL, Fedora
-                        sudo yum install epel-release -y
+                        sudo yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
                         sudo yum install -y jq
                 elif [[ -n "$(command -v apt-get)" ]]; then
                         # Debian, Ubuntu, Mint
@@ -81,8 +81,9 @@ if [ -s "$FILENAME" ]; then
     fi
 else
     sudo mkdir -p /etc/docker
-    echo '{"log-driver": "json-file", "log-opts": {"max-size": "10m", "max-file": "10"}, "exec-opts": ["native.cgroupdriver=systemd"]}' | sudo tee $FILENAME > /dev/null
-    echo "Updated log driver configuration in /etc/docker/daemon.json successfully"
+    # echo '{"log-driver": "json-file", "log-opts": {"max-size": "10m", "max-file": "10"}, "exec-opts": ["native.cgroupdriver=systemd"]}' | sudo tee $FILENAME > /dev/null
+    echo '{"log-driver": "json-file", "log-opts": {"max-size": "10m", "max-file": "10"}}' | sudo tee $FILENAME > /dev/null
+    echo "As Docker Daemon file is not present so now creating & updating log driver configuration in /etc/docker/daemon.json successfully"
 fi
 
 
@@ -116,9 +117,6 @@ sudo systemctl daemon-reload
 sudo systemctl restart docker
 echo "Docker restarted successfully"
 
-
-
-#echo '{"exec-opts": ["native.cgroupdriver=systemd"]}' | sudo tee /etc/docker/daemon.json
 
 if [ -s "$FILENAME" ]; then
     cp $FILENAME /etc/docker/daemon.json.bak
