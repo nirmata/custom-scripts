@@ -97,8 +97,8 @@ echo "Docker restarted successfully"
 echo "========================================="
 echo "checking for cgroupdriver opts in /usr/lib/systemd/system/docker.service"
 echo "========================================="
-if grep -q "native.cgroupdriver" $FILENAME; then
-    sudo sed -i '/native.cgroupdriver/d' $FILENAME
+if grep -q "native.cgroupdriver" $SYSTEMD_SERVICE; then
+    sudo sed -i '/native.cgroupdriver/d' $SYSTEMD_SERVICE
 fi
 
 echo "========================================="
@@ -116,18 +116,6 @@ echo "========================================="
 sudo systemctl daemon-reload
 sudo systemctl restart docker
 echo "Docker restarted successfully"
-
-
-if [ -s "$FILENAME" ]; then
-    cp $FILENAME /etc/docker/daemon.json.bak
-    jq '. + {"exec-opts": ["native.cgroupdriver=systemd"]}' $FILENAME > /etc/docker/daemon.tmp && mv /etc/docker/daemon.tmp $FILENAME
-else
-    sudo mkdir -p /etc/docker
-    echo '{ "exec-opts": ["native.cgroupdriver=systemd"] }' | sudo tee $FILENAME > /dev/null
-fi
-
-sudo systemctl daemon-reload
-sudo systemctl restart docker
 
 echo "========================================="
                 echo "Configure containerd to use version 1.6.19"
