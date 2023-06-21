@@ -4,6 +4,11 @@
     - A Kubernetes Cluster with Kyverno installed.
     - Kubectl access to the cluster.
     - A linux or Mac machine to execute the script.
+    - jq installed. 
+    - Servicemonitor name created for Kyverno
+    - Promtheus EP (IP:PORT)
+
+```NOTE: The Prometheus EP can be found using `kubectl get ep -A | grep prometheus-kube-prometheus-prometheus | awk '{ print $3}'` ``` 
 
 #### Usage: 
 ```
