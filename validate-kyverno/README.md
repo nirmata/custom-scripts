@@ -8,7 +8,8 @@
     - Servicemonitor name created for Kyverno
     - Promtheus EP (IP:PORT)
 
-__NOTE__: In a typical installation, the Prometheus EP can be found using `kubectl get ep -A | grep prometheus-kube-prometheus-prometheus | awk '{ print $3}'`. The EP name maybe different in your environment so use the command accordingly. 
+__NOTE__: 
+In a typical installation, the Prometheus EP can be found using `kubectl get ep -A | grep prometheus-kube-prometheus-prometheus | awk '{ print $3}'`. The EP name maybe different in your environment so use the command accordingly. 
 
 #### Usage: 
 ```
