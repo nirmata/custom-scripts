@@ -83,8 +83,30 @@ else
         #       echo "   - $p"
         #done
 fi
+
+kobjects=$(kubectl api-resources --no-headers | awk '{ print $1}' | sort | uniq)
 echo
+echo "Fetching object sizes of individual kubernetes objects. This may be take few minutes"
+echo
+for res in $kobjects
+do
+        mkdir $res 2> /dev/null
+        kubectl get $res -A 2> /dev/null -o yaml > $res/$res.yaml
+done
+echo "-----------------------------------------"
+echo " Individual object Sizes in etcd:        "
+echo "-----------------------------------------"
+
+du -h --max-depth=0 * | sort -hr
+
+for res in $kobjects
+do
+        rm -rf $res
+done
+
+#echo
 no_of_kyreplicas=$(kubectl get pods -n kyverno  --no-headers | egrep -v 'background-controller|cleanup-controller|reports-controller' | wc -l)
+echo
 echo "Kyverno Replicas:"
 if [[ $no_of_kyreplicas -lt 3 ]]; then
         echo " - $no_of_kyreplicas replica of Kyverno found. It is recommended to deploy kyverno in HA Mode with 3 replicas"
@@ -184,40 +206,7 @@ echo
 
 }
 
-
-## main
-
-rm -rf BaselineReport.txt kyverno
-
-# Check the operating system
-if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
-  echo -e "\nScript cannot be run on a Windows machine. Exiting...\n"
-  exit 1
-fi
-
-report 2>&1 | tee -a BaselineReport.txt
-
-if kubectl get servicemonitor -A 2> /dev/null | grep service-monitor-kyverno-service 1> /dev/null; then
-    tmp1=$(kubectl get servicemonitor -A | awk '/service-monitor-kyverno-service/ { system("kubectl describe servicemonitor " $2 " -n " $1) }' | grep -A5 "Match Labels:" | grep "app.kubernetes.io\/name:" | grep kyverno | awk '{ print $NF }')
-    tmp2=$(kubectl get servicemonitor -A | awk '/service-monitor-kyverno-service/ { system("kubectl describe servicemonitor " $2 " -n " $1) }' | grep -A1 "Match Names:" | tail -1)
-    if [[ -z $tmp1 ]] && [[ -z $tmp2 ]]; then
-            echo -e "\n---------------------------------------------------" | tee -a BaselineReport.txt
-            echo  "Prometheus ServiceMonitor for Kyverno not found! Please install servicemonitor for Kyverno and try again   " | tee -a BaselineReport.txt
-            echo -e "---------------------------------------------------\n" | tee -a BaselineReport.txt
-            exit 1
-    else
-            echo -e "\n---------------------------------------------------" | tee -a BaselineReport.txt
-            echo "Prometheus ServiceMonitor for Kyverno found!" | tee -a BaselineReport.txt
-            echo -e "---------------------------------------------------\n" | tee -a BaselineReport.txt
-    fi
-fi
-
-prom_url=$(kubectl get ep -A | grep prometheus-kube-prometheus-prometheus | awk '{ print $3 }' | cut -d "," -f 1)
-
-if [[ -z $prom_url ]]; then
-        echo -e "Unable to fetch Kyverno metrics from Prometheus as the Prometheus endpoint is not found. Exiting...\n"
-        exit 1
-fi
+prometheusmetrics() {
 
 query1="sum(increase(kyverno_admission_requests_total{}[24h]))"
 query2="sum(kyverno_admission_requests_total{resource_request_operation=\"create\"})/sum(kyverno_admission_requests_total{})"
@@ -226,8 +215,8 @@ query1_encoded=$(urlencode $query1)
 
 query1_tmp=$(curl -s "http://$prom_url/api/v1/query?query=$query1_encoded" | jq -r ".data.result[].value[1]" | cut -d "." -f 1)
 
-echo -e "Total admission requests triggered in the last 24h:  $query1_tmp"
 echo
+echo -e "Total admission requests triggered in the last 24h:  $query1_tmp\n"
 
 query2_encoded=$(urlencode $query2)
 
@@ -235,43 +224,92 @@ query2_tmp=$(curl -s "http://$prom_url/api/v1/query?query=$query2_encoded" | jq 
 
 echo -e "Percentage of total incoming admission requests corresponding to resource creations:  $query2_tmp"
 
-svc_mntr_count=$(kubectl describe servicemonitor -A | grep kyverno | grep "app.kubernetes.io" | wc -l)
-
+echo -e "\nScraping Policies and Rule Counts from Prometheus"
 echo
+curl -s http://$prom_url/api/v1/query?query=kyverno_policy_rule_info_total | jq .
+echo -e "\nScraping Policy and Rule Execution from Prometheus"
+echo
+curl -s http://$prom_url/api/v1/query?query=kyverno_policy_results_total | jq .
+echo -e "\nScraping Policy Rule Execution Latency from Prometheus"
+echo
+curl -s http://$prom_url/api/v1/query?query=kyverno_policy_execution_duration_seconds  | jq .
+echo -e "\nScraping Admission Review Latency from Prometheus"
+echo
+curl -s http://$prom_url/api/v1/query?query=kyverno_admission_review_duration_seconds | jq .
+echo -e "\nScraping Admission Requests Counts from Prometheus"
+echo
+curl -s http://$prom_url/api/v1/query?query=kyverno_admission_requests_total | jq .
+echo -e "\nScraping Policy Change Counts from Prometheus"
+echo
+curl -s http://$prom_url/api/v1/query?query=kyverno_policy_changes_total | jq .
+echo -e "\nScraping Client Queries from Prometheus\n"
+echo
+curl -s http://$prom_url/api/v1/query?query=kyverno_client_queries_total | jq .
+echo -e "\nAll the raw Kyverno data scraped above is dumped in BaselineReport.txt"
 
-if [[ $svc_mntr_count = 0 ]]; then
-       echo -e "\nCannot scrape Kyverno metrics from Prometheus as servicemonitor is missing"
-else
+}
 
-       echo -e "\nScraping Policies and Rule Counts from Prometheus" | tee -a BaselineReport.txt
-       echo | tee -a BaselineReport.txt
-       curl -s http://$prom_url/api/v1/query?query=kyverno_policy_rule_info_total >> BaselineReport.txt
-       echo -e "\nScraping Policy and Rule Execution from Prometheus" | tee -a BaselineReport.txt
-       echo | tee -a BaselineReport.txt
-       curl -s http://$prom_url/api/v1/query?query=kyverno_policy_results_total | >> BaselineReport.txt
-       echo -e "\nScraping Policy Rule Execution Latency from Prometheus" | tee -a BaselineReport.txt
-       echo | tee -a BaselineReport.txt
-       curl -s http://$prom_url/api/v1/query?query=kyverno_policy_execution_duration_seconds  >> BaselineReport.txt
-       echo -e "\nScraping Admission Review Latency from Prometheus" | tee -a BaselineReport.txt
-       echo | tee -a BaselineReport.txt
-       curl -s http://$prom_url/api/v1/query?query=kyverno_admission_review_duration_seconds >> BaselineReport.txt
-       echo -e "\nScraping Admission Requests Counts from Prometheus" | tee -a BaselineReport.txt
-       echo | tee -a BaselineReport.txt
-       curl -s http://$prom_url/api/v1/query?query=kyverno_admission_requests_total >> BaselineReport.txt
-       echo -e "\nScraping Policy Change Counts from Prometheus" | tee -a BaselineReport.txt
-       echo | tee -a BaselineReport.txt
-       curl -s http://$prom_url/api/v1/query?query=kyverno_policy_changes_total >> BaselineReport.txt
-       echo -e "\nScraping Client Queries from Prometheus" | tee -a BaselineReport.txt
-       echo | tee -a BaselineReport.txt
-       curl -s http://$prom_url/api/v1/query?query=kyverno_client_queries_total >> BaselineReport.txt
-       echo | tee -a BaselineReport.txt
-       echo "All the raw Kyverno data scraped above is dumped in BaselineReport.txt"
-       echo
-fi
+
+tarreport() {
 
 tar -cvf baselinereport.tar BaselineReport.txt kyverno 1> /dev/null
 if [[ $? = 0 ]]; then
         echo -e "\nBaseline report \"baselinereport.tar\" generated successfully in the current directory"
 else
         echo -e "\nSomething went wrong generating the baseline report. Please check!"
+fi
+
+
+}
+## main
+
+rm -rf BaselineReport.txt kyverno baselinereport.tar
+
+#Check the operating system
+if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
+  echo -e "\nScript cannot be run on a Windows machine. Exiting...\n"
+  exit 1
+fi
+
+report 2>&1 | tee -a BaselineReport.txt
+
+read -p 'Enter name of the servicemonitor defined for Kyverno: ' KYSVCMONITOR
+echo
+
+if kubectl get servicemonitor -A 2> /dev/null | grep $KYSVCMONITOR 1> /dev/null; then
+    tmp1=$(kubectl get servicemonitor -A | awk -v KYSVCMONITOR="$KYSVCMONITOR" '$0 ~ KYSVCMONITOR { system("kubectl describe servicemonitor " $2 " -n " $1) }' | grep -A5 "Match Labels:" | grep "app.kubernetes.io\/name:" | grep kyverno | awk '{ print $NF }')
+    #echo "tmp1: $tmp1"
+    tmp2=$(kubectl get servicemonitor -A | awk -v KYSVCMONITOR="$KYSVCMONITOR" '$0 ~ KYSVCMONITOR { system("kubectl describe servicemonitor " $2 " -n " $1) }' | grep -A1 "Match Names:" | tail -1 | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+    #echo "tmp2: $tmp2"
+
+    if [[ $tmp1 = kyverno ]] && [[ $tmp2 = kyverno ]]; then
+            echo -e "\n---------------------------------------------------" | tee -a BaselineReport.txt
+            echo  "Prometheus ServiceMonitor for Kyverno found!" | tee -a BaselineReport.txt
+            echo -e "---------------------------------------------------\n" | tee -a BaselineReport.txt
+            read -p 'Enter the endpoint for Promtheus (IP:PORT): ' prom_url
+            echo
+
+            if [[ -z $prom_url ]]; then
+                echo -e "Prometheus EP is null. Prometheus metrics for Kyverno will not be fetched!\n" | tee -a BaselineReport.txt
+            fi
+
+            curl -s http://$prom_url/api/v1/query?query=kyverno_policy_rule_info_total > /dev/null
+
+            if [[ $? = 0 ]]; then
+                    prometheusmetrics 2>&1 | tee -a BaselineReport.txt
+                    tarreport
+            else
+                    echo "Prometheus EP is unreachable or incorrect. Prometheus metrics for Kyverno will not be fetched!\n"
+                    tarreport
+            fi
+
+    else
+            echo -e "\n---------------------------------------------------" | tee -a BaselineReport.txt
+            echo -e "Prometheus ServiceMonitor for Kyverno not found or \nincorrectly configured! Please verify and try again" | tee -a BaselineReport.txt
+            echo -e "---------------------------------------------------\n" | tee -a BaselineReport.txt
+    fi
+else
+    echo "The servicemonitor provided does not exist. Prometheus metrics for Kyverno will not be fetched!" | tee -a BaselineReport.txt
+    tarreport
+
 fi
