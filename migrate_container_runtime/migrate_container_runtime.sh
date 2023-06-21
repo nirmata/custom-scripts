@@ -2,13 +2,74 @@
 
 set -e
 
-echo "========================================="
-		echo "Configure containerd to use version 1.6.19"
-echo "========================================="
-sudo yum install -y yum-utils
-sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-sudo yum install -y containerd.io-1.6.19
-sudo systemctl start containerd
+
+#!/bin/bash
+
+echo "==============================================="
+echo "Checking if containerd is installed"
+echo "==============================================="
+
+required_version="1.6.19"
+
+if command -v containerd &> /dev/null; then
+  # Check the containerd version
+  installed_version=$(containerd --version | awk '{print $3}')
+  required_version="1.6.19"
+
+  if [[ $installed_version == $required_version ]]; then
+    echo "Containerd $required_version is already installed"
+  elif [[ $installed_version > $required_version ]]; then
+    echo "Containerd is installed, but a newer version ($installed_version) is found"
+    echo "Downgrading containerd to version $required_version"
+
+    # Downgrade containerd to the required version
+    if [ -f /etc/debian_version ]; then
+      sudo apt-get update
+      sudo apt-get install -y containerd.io="$required_version"
+    elif [ -f /etc/redhat-release ]; then
+      echo "========================================="
+      sudo yum install -y yum-utils
+      sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+      sudo yum downgrade -y containerd.io-"$required_version"
+      sudo systemctl start containerd
+    fi
+
+    echo "Containerd has been downgraded to version $required_version"
+  else
+    echo "Containerd is installed, but an older version ($installed_version) is found"
+    echo "Upgrading containerd to version $required_version"
+
+    # Upgrade containerd to the required version
+    if [ -f /etc/debian_version ]; then
+      sudo apt-get update
+      sudo apt-get install -y containerd.io="$required_version"
+    elif [ -f /etc/redhat-release ]; then
+      echo "========================================="
+      sudo yum install -y yum-utils
+      sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+      sudo yum upgrade -y containerd.io-"$required_version"
+      sudo systemctl start containerd
+    fi
+
+    echo "Containerd has been upgraded to version $required_version"
+  fi
+else
+  echo "Containerd is not installed, installing now..."
+
+  # Install containerd with the required version
+  if [ -f /etc/debian_version ]; then
+    sudo apt-get update
+    sudo apt-get install -y containerd.io="$required_version"
+  elif [ -f /etc/redhat-release ]; then
+    echo "========================================="
+    sudo yum install -y yum-utils
+    sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+    sudo yum install -y containerd.io-"$required_version"
+    sudo systemctl start containerd
+  fi
+
+  echo "Containerd has been installed with version $required_version"
+fi
 
 
 echo "========================================="
