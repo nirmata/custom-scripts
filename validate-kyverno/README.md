@@ -5,6 +5,7 @@
     - Kubectl access to the cluster.
     - A linux or Mac machine to execute the script.
     - jq installed. 
+    - Promtheus installed with servicemonitor for Kyverno created. 
     - Servicemonitor name created for Kyverno
     - Promtheus EP (IP:PORT)
 
