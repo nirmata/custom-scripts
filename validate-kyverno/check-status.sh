@@ -263,7 +263,9 @@ fi
 }
 ## main
 
-rm -rf BaselineReport.txt kyverno baselinereport.tar
+mkdir temp
+cd temp
+rm -rf BaselineReport.txt kyverno baselinereport.tar 2> /dev/null
 
 #Check the operating system
 if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
