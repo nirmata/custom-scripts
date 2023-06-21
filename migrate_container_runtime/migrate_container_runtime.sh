@@ -31,6 +31,7 @@ if command -v containerd &> /dev/null; then
       sudo yum install -y yum-utils
       sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
       sudo yum downgrade -y containerd.io-"$required_version"
+      sudo systemctl enable --now containerd
       sudo systemctl start containerd
     fi
 
@@ -48,6 +49,7 @@ if command -v containerd &> /dev/null; then
       sudo yum install -y yum-utils
       sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
       sudo yum upgrade -y containerd.io-"$required_version"
+      sudo systemctl enable --now containerd
       sudo systemctl start containerd
     fi
 
