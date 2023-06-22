@@ -254,7 +254,7 @@ tarreport() {
 
 tar -cvf baselinereport.tar BaselineReport.txt kyverno 1> /dev/null
 if [[ $? = 0 ]]; then
-        echo -e "\nBaseline report \"baselinereport.tar\" generated successfully in the current directory"
+        echo -e "\nBaseline report \"baselinereport.tar\" generated successfully in the current directory under temp"
 else
         echo -e "\nSomething went wrong generating the baseline report. Please check!"
 fi
@@ -263,15 +263,15 @@ fi
 }
 ## main
 
-mkdir temp
+mkdir temp 2> /dev/null
 cd temp
 rm -rf BaselineReport.txt kyverno baselinereport.tar 2> /dev/null
 
 #Check the operating system
-if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
-  echo -e "\nScript cannot be run on a Windows machine. Exiting...\n"
-  exit 1
-fi
+#if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
+#  echo -e "\nScript cannot be run on a Windows machine. Exiting...\n"
+#  exit 1
+#fi
 
 report 2>&1 | tee -a BaselineReport.txt
 
