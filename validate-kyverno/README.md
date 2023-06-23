@@ -14,5 +14,5 @@ In a typical installation, the Prometheus EP can be found by running `kubectl ge
 
 #### Usage: 
 ```
-$ ./check-status.sh
+$ ./kyverno-healthcheck-baseline.sh service-monitor-kyverno-service 10.14.1.73:9090
 ```
