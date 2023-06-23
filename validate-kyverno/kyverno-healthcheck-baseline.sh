@@ -97,7 +97,13 @@ echo "-----------------------------------------"
 echo " Individual object Sizes in etcd:        "
 echo "-----------------------------------------"
 
-du -h --max-depth=0 * | sort -hr
+if [[ "$OSTYPE" == "darwin"* ]]; then
+        du -sh * | sort -hr
+else
+        du -h --max-depth=0 * | sort -hr
+fi
+
+#du -h --max-depth=0 * | sort -hr
 
 for res in $kobjects
 do
@@ -178,9 +184,10 @@ kubectl get deploy,svc,cm -n kyverno -o yaml > kyverno/manifests/kyverno.yaml 2>
 kubectl get validatingwebhookconfigurations kyverno-policy-validating-webhook-cfg kyverno-resource-validating-webhook-cfg -o yaml > kyverno/manifests/validatingwebhooks.yaml 2> /dev/null
 kubectl get mutatingwebhookconfigurations kyverno-policy-mutating-webhook-cfg kyverno-resource-mutating-webhook-cfg kyverno-verify-mutating-webhook-cfg -o yaml > kyverno/manifests/mutatingwebhooks.yaml 2> /dev/null
 kubectl get cpol -o yaml > kyverno/manifests/cpols.yaml 2> /dev/null
-kubectl get policyreport -A -o yaml kyverno/manifests/policyreportyaml.yaml 2> /dev/null
-kubectl get policyreport -A kyverno/manifests/policyreport.yaml 2> /dev/null
-kubectl get crd -n kyverno -o yaml kyverno/manifests/crd.yaml 2> /dev/null
+kubectl get policyreport -A -o yaml > kyverno/manifests/policyreportyaml.yaml 2> /dev/null
+#kubectl get policyreport -A kyverno/manifests/policyreport.yaml 2> /dev/null
+#kubectl get crd -n kyverno -o yaml kyverno/manifests/crd.yaml 2> /dev/null
+kubectl get crd | egrep 'kyverno|wgp' > kyverno/manifests/crd.yaml 2> /dev/null
 
 echo " - Manifests are collected in \"kyverno/manifests\" folder"
 echo
@@ -263,20 +270,30 @@ fi
 }
 ## main
 
+if [[ $# != 2 ]]; then
+        echo -e "\nUsage: $0 <Servicemonitor name for Kyverno> <Prometheus EP (IP:PORT)>"
+        echo -e "\nExample: $0 service-monitor-kyverno-service 10.14.1.73:9090"
+        echo -e "\nNote: Please refer to the README if you are not sure where to find the Prometheus EP\n"
+        exit 1
+fi
+
+KYSVCMONITOR=$1
+prom_url=$2
+
 mkdir temp 2> /dev/null
 cd temp
 rm -rf BaselineReport.txt kyverno baselinereport.tar 2> /dev/null
 
 #Check the operating system
-#if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
-#  echo -e "\nScript cannot be run on a Windows machine. Exiting...\n"
-#  exit 1
-#fi
+if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
+  echo -e "\nScript cannot be run on a Windows machine. Exiting...\n"
+  exit 1
+fi
 
 report 2>&1 | tee -a BaselineReport.txt
 
-read -p 'Enter name of the servicemonitor defined for Kyverno: ' KYSVCMONITOR
-echo
+#read -p 'Enter name of the servicemonitor defined for Kyverno: ' KYSVCMONITOR
+#echo
 
 if kubectl get servicemonitor -A 2> /dev/null | grep $KYSVCMONITOR 1> /dev/null; then
     tmp1=$(kubectl get servicemonitor -A | awk -v KYSVCMONITOR="$KYSVCMONITOR" '$0 ~ KYSVCMONITOR { system("kubectl describe servicemonitor " $2 " -n " $1) }' | grep -A5 "Match Labels:" | grep "app.kubernetes.io\/name:" | grep kyverno | awk '{ print $NF }')
@@ -288,8 +305,8 @@ if kubectl get servicemonitor -A 2> /dev/null | grep $KYSVCMONITOR 1> /dev/null;
             echo -e "\n---------------------------------------------------" | tee -a BaselineReport.txt
             echo  "Prometheus ServiceMonitor for Kyverno found!" | tee -a BaselineReport.txt
             echo -e "---------------------------------------------------\n" | tee -a BaselineReport.txt
-            read -p 'Enter the endpoint for Promtheus (IP:PORT): ' prom_url
-            echo
+            #read -p 'Enter the endpoint for Promtheus (IP:PORT): ' prom_url
+            #echo
 
             if [[ -z $prom_url ]]; then
                 echo -e "Prometheus EP is null. Prometheus metrics for Kyverno will not be fetched!\n" | tee -a BaselineReport.txt
