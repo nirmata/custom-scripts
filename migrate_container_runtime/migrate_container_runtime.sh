@@ -22,8 +22,14 @@ sudo mv bin/* /usr/bin/
 echo "---Setting up systemd service for Containerd---"
 #sudo mkdir -p /etc/containerd
 #sudo cp  containerd.service /etc/systemd/system/containerd.service
-sudo systemctl enable containerd
-sudo systemctl start containerd
+sudo systemctl disable containerd
+sudo systemctl enable --now containerd
+sudo systemctl is-enabled --now containerd
+
+status=$(sudo systemctl status containerd | grep "Active:" | awk '{print $2}')
+echo "Containerd status: $status"
+echo "==============================================="
+
 
 echo "---Clean up the downloaded files---"
 rm containerd-1.6.19-linux-amd64.tar.gz
