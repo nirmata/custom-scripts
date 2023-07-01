@@ -21,7 +21,7 @@ sudo mv bin/* /usr/bin/
 
 echo "---Setting up systemd service for Containerd---"
 sudo mkdir -p /etc/containerd
-sudo cp containerd.service /etc/systemd/system/containerd.service
+#sudo cp  containerd.service /etc/systemd/system/containerd.service
 sudo systemctl enable containerd
 sudo systemctl start containerd
 
