@@ -17,7 +17,8 @@ echo "---Extracting the tarball-----"
 tar -xvf containerd-1.6.19-linux-amd64.tar.gz
 
 echo "---Moving the binaries to the appropriate directories---"
-sudo mv bin/* /usr/bin/
+sudo mv -r bin/* /usr/local/bin/
+#sudo cp -r bin/* /usr/bin/
 
 echo "---Setting up systemd service for Containerd---"
 #sudo mkdir -p /etc/containerd
@@ -32,8 +33,9 @@ echo "==============================================="
 
 
 echo "---Clean up the downloaded files---"
-rm containerd-1.6.19-linux-amd64.tar.gz
-rm containerd.service
+rm  containerd-1.6.19-linux-amd64.tar.gz*
+rm  containerd.service*
+rm -rf bin*
 
 echo "Containerd has been installed with version $required_version"
 
