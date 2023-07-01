@@ -2,109 +2,75 @@
 
 set -e
 
-
-#!/bin/bash
-
 echo "==============================================="
 echo "Checking if containerd is installed"
 echo "==============================================="
 
-required_version="1.6.19"
+required_version="v1.6.19"
 
-if command -v containerd &> /dev/null; then
-  # Check the containerd version
-  installed_version=$(containerd --version | awk '{print $3}')
-  required_version="1.6.19"
+# Download Containerd release
+echo "----- Downloading Containerd release v1.6.19------"
+wget https://github.com/containerd/containerd/releases/download/v1.6.19/containerd-1.6.19-linux-amd64.tar.gz
+wget https://raw.githubusercontent.com/containerd/containerd/main/containerd.service
 
-  if [[ $installed_version == $required_version ]]; then
-    echo "Containerd $required_version is already installed"
-  elif [[ $installed_version > $required_version ]]; then
-    echo "Containerd is installed, but a newer version ($installed_version) is found"
-    echo "Downgrading containerd to version $required_version"
+echo "---Extracting the tarball-----"
+tar -xvf containerd-1.6.19-linux-amd64.tar.gz
 
-    # Downgrade containerd to the required version
-    if [ -f /etc/debian_version ]; then
-      sudo apt-get update
-      sudo apt-get install -y containerd.io="$required_version"
-    elif [ -f /etc/redhat-release ]; then
-      echo "========================================="
-      sudo yum install -y yum-utils
-      sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-      sudo yum downgrade -y containerd.io-"$required_version"
-      sudo systemctl enable --now containerd
-      sudo systemctl start containerd
-    fi
+echo "---Moving the binaries to the appropriate directories---"
+sudo mv bin/* /usr/bin/
 
-    echo "Containerd has been downgraded to version $required_version"
-  else
-    echo "Containerd is installed, but an older version ($installed_version) is found"
-    echo "Upgrading containerd to version $required_version"
+echo "---Setting up systemd service for Containerd---"
+sudo mkdir -p /etc/containerd
+sudo cp containerd.service /etc/systemd/system/containerd.service
+sudo systemctl enable containerd
+sudo systemctl start containerd
 
-    # Upgrade containerd to the required version
-    if [ -f /etc/debian_version ]; then
-      sudo apt-get update
-      sudo apt-get install -y containerd.io="$required_version"
-    elif [ -f /etc/redhat-release ]; then
-      echo "========================================="
-      sudo yum install -y yum-utils
-      sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-      sudo yum upgrade -y containerd.io-"$required_version"
-      sudo systemctl enable --now containerd
-      sudo systemctl start containerd
-    fi
+echo "---Clean up the downloaded files---"
+rm containerd-1.6.19-linux-amd64.tar.gz
+rm containerd.service
 
-    echo "Containerd has been upgraded to version $required_version"
-  fi
+echo "Containerd has been installed with version $required_version"
+
+echo "========================================="
+echo "Verifying containerd version v1.6.19"
+echo "========================================="
+
+installed_version=$(containerd --version | awk '{print $3}')
+
+if [[ $installed_version == $required_version ]]; then
+  echo "Containerd $required_version is already installed"
+elif [[ $installed_version > $required_version ]]; then
+  echo "Containerd is installed, but a newer version ($installed_version) is found"
 else
-  echo "Containerd is not installed, installing now..."
-
-  # Install containerd with the required version
-  if [ -f /etc/debian_version ]; then
-    sudo apt-get update
-    sudo apt-get install -y containerd.io="$required_version"
-  elif [ -f /etc/redhat-release ]; then
-    echo "========================================="
-    sudo yum install -y yum-utils
-    sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-    sudo yum install -y containerd.io-"$required_version"
-    sudo systemctl start containerd
-  fi
-
-  echo "Containerd has been installed with version $required_version"
-fi
-
-
-echo "========================================="
-		echo "Verifying containerd  version 1.6.19"
-echo "========================================="
-if rpm -q containerd.io-1.6.19; then
-echo "========================================="
-  echo "containerd version v1.6.19 installed successfully"
-echo "========================================="
-  # proceed with the next step
-else
-echo "========================================="
-  echo "Failed to install containerd version v1.6.19"
-echo "========================================="
-  exit 1 
+  echo "Containerd is installed, but an older version ($installed_version) is found"
 fi
 
 echo "========================================="
-  echo "Copying config.toml file"
+echo "Copying config.toml file"
 echo "========================================="
-cp config.toml /etc/containerd/config.toml
-chmod 644 /etc/containerd/config.toml
+
+sudo cp config.toml /etc/containerd/config.toml
+sudo chmod 644 /etc/containerd/config.toml
 
 echo "========================================="
-                echo "Restart containerd to apply the changes"
+echo "Restart containerd to apply the changes"
 echo "========================================="
+
 sudo systemctl restart containerd
+
 if [ $? -eq 0 ]; then
-echo "========================================="
-echo "containerd restarted successfully."
-echo "========================================="
+  echo "========================================="
+  echo "containerd restarted successfully."
+  echo "========================================="
 else
-echo "========================================="
-echo "Failed to restart containerd."
-echo "========================================="
+  echo "========================================="
+  echo "Failed to restart containerd."
+  echo "========================================="
 fi
+
+echo "Checking containerd status"
+echo "==============================================="
+
+status=$(sudo systemctl status containerd | grep "Active:" | awk '{print $2}')
+echo "Containerd status: $status"
+echo "==============================================="
