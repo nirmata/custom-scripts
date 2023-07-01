@@ -17,7 +17,7 @@ echo "---Extracting the tarball-----"
 tar -xvf containerd-1.6.19-linux-amd64.tar.gz
 
 echo "---Moving the binaries to the appropriate directories---"
-sudo mv -r bin/* /usr/local/bin/
+sudo mv bin/* /usr/local/bin/
 #sudo cp -r bin/* /usr/bin/
 
 echo "---Setting up systemd service for Containerd---"
