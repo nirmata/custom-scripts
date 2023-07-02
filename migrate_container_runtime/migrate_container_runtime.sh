@@ -73,17 +73,17 @@ else
 
     echo "==================================================="
 
-        # Uninstall kyverno chart
-        echo "Uninstalling kyverno chart..."
-        helm uninstall kyverno -n kyverno
-
         # Uninstall best-practice-policies chart
         echo "Uninstalling best-practice-policies chart..."
-        helm uninstall best-practice-policies 
+        helm uninstall best-practice-policies -n default
 
         # Uninstall pod-security-policies chart
         echo "Uninstalling pod-security-policies chart..."
-        helm uninstall pod-security-policies 
+        helm uninstall pod-security-policies -n default
+
+        # Uninstall kyverno chart
+        echo "Uninstalling kyverno chart..."
+        helm uninstall kyverno -n kyverno
 
         # Delete policyset resources with retries
         echo "Deleting policyset resources"
