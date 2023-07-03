@@ -18,17 +18,6 @@ sudo /bin/cp -rf bin/* /usr/bin/
 
 echo "---Setting up systemd service for Containerd---"
 #sudo mkdir -p /etc/containerd
-
-    
-          
-            
-    
-
-          
-          Expand Down
-    
-    
-  
 #sudo cp  containerd.service /etc/systemd/system/containerd.service
 sudo systemctl disable containerd
 sudo systemctl enable --now containerd
