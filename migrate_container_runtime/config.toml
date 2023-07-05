@@ -51,8 +51,8 @@ version = 2
     max_container_log_line_size = 16384
     netns_mounts_under_state_dir = false
     restrict_oom_score_adj = false
-    #sandbox_image = "registry.k8s.io/pause:3.6"
-    sandbox_image = "docker-repo.nibr.novartis.net/k8sgcr/pause:3.6"
+    sandbox_image = "registry.k8s.io/pause:3.6"
+    #sandbox_image = "docker-repo.nibr.novartis.net/k8sgcr/pause:3.6"
     selinux_category_range = 1024
     stats_collect_period = 10
     stream_idle_timeout = "4h0m0s"
@@ -156,10 +156,10 @@ version = 2
 ##    fs_type = ""
 ##    pool_name = ""
 ##    root_path = ""
-  [plugins."io.containerd.snapshotter.v1.native"]
-    root_path = ""
-##  [plugins."io.containerd.snapshotter.v1.overlayfs"]
+##  [plugins."io.containerd.snapshotter.v1.native"]
 ##    root_path = ""
+  [plugins."io.containerd.snapshotter.v1.overlayfs"]
+    root_path = ""
 ##    upperdir_label = false
 ##  [plugins."io.containerd.snapshotter.v1.zfs"]
 ##    root_path = ""
