@@ -13,6 +13,7 @@ else
         echo Username,Email > user_details_devops.csv
 	curl -s -H "Accept: application/json, text/javascript, */*; q=0.01" -H "Authorization: NIRMATA-API $TOKEN" -X GET "$NIRMATAURL/users/api/User?fields=id,name,email,role" | \
 jq -r 'map(select(.role == "devops")) | .[] | [.name, .email] | @csv' >> user_details_devops.csv
+#	cat user_details_platform_devops.csv
 	echo "=============================================================================="	
 	echo "Fetching Cluster and Environment Permissions for the DevOps Users" 
 	echo "=============================================================================="
@@ -27,3 +28,4 @@ jq -r '.permissions | .entityName as $username | .clusters[] |
        @csv' | tr -d '"' >> output.csv
 	done
 fi
+	
