@@ -13,6 +13,8 @@ echo "---------------------------"
 echo "$health_output"
 echo "---------------------------"
 
+    echo "==========================================================="
+
 # Check if the desired string is present in the output
 if [[ $health_output == *"Warn: WiredTiger"* ]]; then
   echo "Executing script because 'Warn: WiredTiger' was found in the health script output"
@@ -20,35 +22,18 @@ if [[ $health_output == *"Warn: WiredTiger"* ]]; then
     nadm_directory=$1
     backup_directory=$2
 
-    echo "--------Take the Mongo backup--------"
+    echo "--------Taking the Mongo backup--------"
 
     echo "Using nadm directory: $nadm_directory"
     echo "Using backup directory: $backup_directory"
 
     cd "$nadm_directory"
 
-    # echo "==========================================================="
-
-    # echo "all" | ./nadm backup -d "$backup_directory" -n nirmata | while read -r line; do
-    #     echo "$line"
-    #     # Add any additional processing if needed
-    # done
-
-    # #check the status of backup if that done successfully
-    # echo $?
-
-    # echo "--------Verify if the backup size is good--------"
-
-    # ls -lrth "$backup_directory"
-
-
-    echo "--------Take the Mongo backup--------"
+    echo "==========================================================="
 
     valid_path=false
 
     while [ "$valid_path" = false ]; do
-        #read -p "Please enter the path to the nadm directory: " nadm_directory
-
         # Check if the "./nadm" file exists in the specified directory
         if [ -f "$nadm_directory/nadm" ]; then
             valid_path=true
@@ -61,16 +46,17 @@ if [[ $health_output == *"Warn: WiredTiger"* ]]; then
 
     echo "==========================================================="
 
-    #read -p "Enter the backup directory: " backup_directory
     echo "all" | ./nadm backup -d "$backup_directory" -n nirmata | while read -r line; do
         echo "$line"
         # Add any additional processing if needed
     done
 
-    #check the status of backup if that done successfully
+    echo "checking the status of backup if that done successfully"
     echo $?
+    
+    echo "==========================================================="
 
-    echo "--------Verify if the backup size is good--------"
+    echo "--------Verifying if the backup size is good--------"
 
     #read -p "Please enter the path to the backup directory: " backup_directory
 
@@ -79,33 +65,40 @@ if [[ $health_output == *"Warn: WiredTiger"* ]]; then
 
     echo "==========================================================="
 
-    echo "----Check the count of pods scale up for Nirmata services---"
+    echo "----Checking the count of pods to scale up for Nirmata services after mongodb cleanup---"
 
     # Check the number of pods for the deployment and store it in a variable
     # pods_count1=$(kubectl get deploy -n nirmata --output=jsonpath='{.items[*].status.replicas}')
-    pods_count1=$(kubectl get deploy -n nirmata --output=jsonpath='{.items[*].spec.replicas}')
+    # pods_count1=$(kubectl get deploy -n nirmata --output=jsonpath='{.items[*].spec.replicas}')
 
     # Store the deployment names in an array
     deployment_names=($(kubectl get deploy -n nirmata --output=jsonpath='{.items[*].metadata.name}'))
+    replica_counts=()
 
-    echo "Number of pods for Nirmata services: $pods_count1"
-    echo "Deployment names:"
-    for deployment in "${deployment_names[@]}"; do
-        echo "$deployment"
-    done
+        echo "==========================================================="
 
-    sleep 5
+      echo "---------Storing Current Replica Counts------------"
+      # Iterate over the deployment names and store the current replica counts
+      for deployment_name in "${deployment_names[@]}"; do
+          # Get the current replica count for the deployment
+          pods_count1=$(kubectl get deploy "$deployment_name" -n nirmata --output=jsonpath='{.spec.replicas}')
+          echo "Nirmata Service count for $deployment_name: $pods_count1"
+
+          # Store the replica count in the array
+          replica_counts+=("$pods_count1")
+      done
 
     echo "==========================================================="
 
-    echo "--------Scale down Nirmata services--------"
+    echo "--------Scaling down Nirmata services--------"
 
     # Scale down all Nirmata services to 0 replicas
     kubectl scale deploy --all -n nirmata --replicas=0
     sleep 30
 
+    echo "==========================================================="
 
-    echo "--------Check if the Nirmata Services are down------"
+    echo "--------Checking if the Nirmata Services are down------"
 
     # Check the pod count for all deployments in the nirmata namespace
     pod_count=$(kubectl get deploy -n nirmata --output=jsonpath='{range .items[*]}{.metadata.name}={.status.replicas}{"\n"}{end}')
@@ -137,7 +130,7 @@ if [[ $health_output == *"Warn: WiredTiger"* ]]; then
     echo "==========================================================="
 
 
-    echo "--------Scaled down the shared service (Tunnel)--------"
+    echo "--------Scaling down the shared service (Tunnel)--------"
 
     # Scale down the Tunnel StatefulSet to 0 replicas
     kubectl scale sts tunnel -n nirmata --replicas=0
@@ -145,7 +138,7 @@ if [[ $health_output == *"Warn: WiredTiger"* ]]; then
     echo "Waiting for 10 seconds..."
     sleep 10
 
-    echo "--------Check if the Tunnel Service is down------"
+    echo "--------Checking if the Tunnel Service is down------"
 
     # Check the pod count for the Tunnel StatefulSet in the nirmata namespace
     pod_count=$(kubectl get sts tunnel -n nirmata --output=jsonpath='{.status.replicas}')
@@ -161,7 +154,7 @@ if [[ $health_output == *"Warn: WiredTiger"* ]]; then
 
 
 
-    echo "--------Scaled down the shared service (MongoDB)--------"
+    echo "--------Scaling down the shared service (MongoDB)--------"
 
     # Scale down the MongoDB StatefulSet to 0 replicas
     kubectl scale sts mongodb -n nirmata --replicas=0
@@ -169,7 +162,7 @@ if [[ $health_output == *"Warn: WiredTiger"* ]]; then
     echo "Waiting for 20 seconds..."
     sleep 20
 
-    echo "--------Check if the MongoDB Service is down------"
+    echo "--------Checking if the MongoDB Service is down------"
 
     # Check the pod count for the MongoDB StatefulSet in the nirmata namespace
     pod_count=$(kubectl get sts mongodb -n nirmata --output=jsonpath='{.status.replicas}')
@@ -183,24 +176,30 @@ if [[ $health_output == *"Warn: WiredTiger"* ]]; then
     sleep 5
     echo "==========================================================="
 
-    echo "------List MongoDB PVCs---------"
+    echo "------Listing MongoDB PVCs---------"
     mongodb_pvc=$(kubectl get pvc -n nirmata | grep -i mongodb)
 
     echo "MongoDB PVCs:"
     echo "$mongodb_pvc"
 
-    echo "-------Delete PVCs of MongoDB---------"
+        echo "==========================================================="
+
+    echo "-------Deleting PVCs of MongoDB---------"
     # Extract the PVC names from the stored output
     pvc_names=$(echo "$mongodb_pvc" | awk '{print $1}')
 
     # Loop through each PVC name and remove finalizer before deleting
     for pvc_name in $pvc_names; do
       # Remove the finalizer from PVC
+      echo "Removing the finalizer from PVC"
       kubectl patch pvc $pvc_name -n nirmata -p '{"metadata":{"finalizers": []}}' --type=merge
 
       # Delete the PVC
+      echo "Deleting the PVC"
       kubectl delete pvc $pvc_name -n nirmata
     done
+
+        echo "==========================================================="
 
     echo "--------Verifying if the PVCs were removed-------"
     mongodb_pvc_check=$(kubectl get pvc -n nirmata | grep -i mongodb)
@@ -215,13 +214,15 @@ if [[ $health_output == *"Warn: WiredTiger"* ]]; then
     sleep 5
     echo "==========================================================="
 
-    echo "------List MongoDB PVs---------"
+    echo "------Listing MongoDB PVs---------"
     mongodb_pv=$(kubectl get pv -n nirmata | grep -i mongodb)
 
     echo "MongoDB PVs:"
     echo "$mongodb_pv"
 
-    echo "-------Delete PVs for MongoDB---------"
+        echo "==========================================================="
+
+    echo "-------Deleting PVs for MongoDB---------"
     # Extract the PV names from the stored output
     pv_names=$(echo "$mongodb_pv" | awk '{print $1}')
 
@@ -233,7 +234,7 @@ if [[ $health_output == *"Warn: WiredTiger"* ]]; then
       # Delete the PV
       kubectl delete pv $pv_name -n nirmata
     done
-
+    echo "==========================================================="
     echo "--------Verifying if the PVs were removed-------"
     mongodb_pv_check=$(kubectl get pv -n nirmata | grep -i mongodb)
 
@@ -247,7 +248,7 @@ if [[ $health_output == *"Warn: WiredTiger"* ]]; then
     sleep 5
     echo "==========================================================="
 
-    echo "-------Scale up the MongoDB services to count 3---------"
+    echo "-------Scaling up the MongoDB services to count 3---------"
     # Scale up the MongoDB services to count 3 replicas
     max_attempts=3
     attempt=1
@@ -257,7 +258,7 @@ if [[ $health_output == *"Warn: WiredTiger"* ]]; then
       kubectl scale sts mongodb -n nirmata --replicas=3
 
       # Wait for a few seconds before checking the pod count
-      sleep 5
+      sleep 120
 
       # Check the pod count for MongoDB pods
       mongodb_pods=$(kubectl get pods -n nirmata -l app=mongodb)
@@ -287,24 +288,19 @@ if [[ $health_output == *"Warn: WiredTiger"* ]]; then
     done
     echo "==========================================================="
 
-    echo "--------Restore MongoDB----------"
+    echo "--------Restoring MongoDB----------"
     current_directory=$(pwd)
     echo "Current directory: $current_directory"
     echo "Using existing path of the ./nadm directory:"
-    # echo "Please provide the path to the ./nadm directory:"
-    # read -r nadm_directory
-    echo "Using existing path of the backup directory (gzip present):"
-    # echo "Please provide the path to the backup directory (gzip present):"
-    # read -r backup_directory
 
-    # cd "$nadm_directory" || exit
-    # ./nadm restore -d "$backup_directory" -n nirmata
-    # restore_status=$?
+    echo "Using existing path of the backup directory (gzip present):"
+ 
 
     cd "$nadm_directory" || exit
     echo "y"  | ./nadm restore -d "$backup_directory" -n nirmata
     restore_status=$?
 
+    echo "==========================================================="
 
     echo "-------Verify the Restoration is done successfully-------"
     if [ "$restore_status" -eq 0 ]; then
@@ -321,8 +317,12 @@ if [[ $health_output == *"Warn: WiredTiger"* ]]; then
     echo "-------Scale up the Tunnel service to count 2---------"
     kubectl scale sts tunnel -n nirmata --replicas=2
 
+    echo "==========================================================="
+
     echo "--------Sleeping for 10 seconds--------"
     sleep 10
+
+        echo "==========================================================="
 
     echo "--------Verify if the Tunnel pods are scaled up and running--------"
     tunnel_pods=$(kubectl get pods -n nirmata -l nirmata.io/statefulset.name=tunnel)
@@ -341,72 +341,86 @@ if [[ $health_output == *"Warn: WiredTiger"* ]]; then
     echo "==========================================================="
 
     echo "---------Scale up the Nirmata Services------------"
-    #use the count from the previous output we had to scal down deploy in nirmata service
-
-    # ./nadm scale --replicas=2 --nirmata
-    # # if this doesn't work then run below command
-    # kubectl scale deploy --all -n nirmata --replicas=2 #Note it should only scale up the count same as previous
-
-    echo "---------Scale up the Nirmata Services------------"
     # Iterate over the deployment names and scale up the respective deployments
-    for deployment_name in "${deployment_names[@]}"; do
-        # Get the current replica count for the deployment
-        current_replicas=$(kubectl get deploy "$deployment_name" -n nirmata --output=jsonpath='{.spec.replicas}')
-        echo "current deployment replicas"
-        echo $current_replicas
-
-        # Scale up the deployment using the current replica count
-        # kubectl scale deploy "$deployment_name" -n nirmata --replicas="$current_replicas"
-        #kubectl scale deploy "$deployment_name" -n nirmata --replicas="$pods_count1"
-        kubectl scale deploy "$deployment_name" -n nirmata --replicas=1
+    for i in "${!deployment_names[@]}"; do
+      deployment_name=${deployment_names[i]}
+      replica_count=${replica_counts[i]}
+      kubectl scale deploy "$deployment_name" -n nirmata --replicas="$replica_count"
     done
-
-    sleep 5
+    sleep 120
     echo "==========================================================="
 
-    echo "------List MongoDB new PVs---------"
+    echo "------Listing MongoDB new PVs---------"
     mongodb_pvs=$(kubectl get pv -n nirmata | grep -i mongodb)
 
     echo "MongoDB PVs:"
     echo "$mongodb_pvs"
+  
+    echo "==========================================================="
 
-    echo "--------Set Retain state to MongoDB PVs--------"
+    echo "--------Setting up Retain state to MongoDB PVs--------"
     # Extract the PV names from the stored output
     pv_names=$(echo "$mongodb_pvs" | awk '{print $1}')
 
     # Set the reclaim policy to "Retain" for MongoDB PVs
     kubectl patch pv $pv_names -n nirmata -p '{"spec":{"persistentVolumeReclaimPolicy":"Retain"}}'
 
+    echo "==========================================================="
 
     echo "Checking pod statuses..."
 
     # Get the pod statuses
+    kubectl get pods -n nirmata --no-headers=true -o=custom-columns='POD:metadata.name,STATUS:status.phase' | awk '{print $1, $2}'
     pod_statuses=$(kubectl get pods -n nirmata --no-headers=true | awk '{print $3}')
 
     echo "Current pod statuses:"
     echo "$pod_statuses"
 
-    # # Check if any pod has an error status
-    # if [[ $pod_statuses =~ ^(Pending|ImagePullBackOff|Failed|Error|CrashLoopBackOff) ]]; then
-    #     echo "Found pod(s) with an error status. Deleting the failed pod..."
-    #     # Get the name of the failed pod
-    #     failed_pod=$(kubectl get pods -n nirmata --no-headers=true | awk '{ if ($3 == "Error") print $1 }')
 
-    #     # Delete the failed pod
-    #     kubectl delete pod $failed_pod -n nirmata
-    #     echo "Deleted the failed pod: $failed_pod"
-    # fi
+    sleep 10
+        echo "==========================================================="
+    echo "-------Wait for 2 minutes----------"
+    sleep 120  # Sleep for 5 minutes (300 seconds)
+      # Function to check and display the names of non-ready pods
+      check_non_ready_pods() {
+          local namespace=$1
+          local attempts=0
 
-    sleep 5
-    echo "-------Wait for 5 minutes----------"
-    #sleep 300  # Sleep for 5 minutes (300 seconds)
+          while [ $attempts -lt 3 ]; do
+              non_ready_pods=($(kubectl get pods -n "$namespace" --no-headers=true --field-selector=status.phase!=Running --output=jsonpath='{.items[*].metadata.name}'))
+
+              if [ ${#non_ready_pods[@]} -eq 0 ]; then
+                  echo "All pods are running."
+                  return 0
+              else
+                  echo "Found the following non-ready pod(s):"
+                  for pod_name in "${non_ready_pods[@]}"; do
+                      echo "- $pod_name"
+                      echo "Deleting pod: $pod_name"
+                      kubectl delete pod "$pod_name" -n "$namespace"
+                  done
+                  echo "Waiting for 60 seconds before retrying..."
+                  sleep 60
+                  attempts=$((attempts + 1))
+              fi
+          done
+
+          echo "Failed to bring all pods into the running state after multiple retries. Please fix the pods."
+          exit 1
+      }
+
+      # Store the namespace in a variable
+      namespace="nirmata"
+
+      # Check for non-ready pods
+      check_non_ready_pods "$namespace"
 
     echo "==========================================================="
 
     echo "---Running Health Check Script to verify Nirmata Shared Services Health---"
 
 
-    echo "Some Test cases: Nirmata is up? Clusters are ready? Env is showing up ? Users can log in? --- (you can ask them to perform this manually or add it in the script as test cases)"
+    echo " Mongodb Cleanup is done, Please check from UI side: Nirmata is up? Clusters are ready? Env is showing up ? Users can log in?"
 else
   echo "'Warn: WiredTiger' not found in the health script output. Exiting."
 fi
