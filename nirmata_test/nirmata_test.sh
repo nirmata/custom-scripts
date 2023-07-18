@@ -38,6 +38,7 @@ run_remote=1
 run_mongo=1
 run_zoo=1
 run_kafka=1
+run_deploy=1
 # Did we get an error?
 export error=0
 # Did we get a warning?
@@ -56,6 +57,7 @@ if [[ ! $all_args == *--cluster* ]] ; then
             run_mongo=0
             run_zoo=0
             run_kafka=0
+            run_deploy=0
         fi
     fi
 fi
@@ -242,6 +244,7 @@ for i in "$@";do
             run_mongo=0
             run_zoo=0
             run_kafka=0
+            run_deploy=0
             if [[ ! $all_args == *--cluster* ]] ; then
                 run_remote=1
             fi
@@ -416,6 +419,13 @@ mongo_master=""
 mongo_masters=0
 mongo_error=0
 for mongo in $mongos; do
+    # Check if the MongoDB pod is ready
+    pod_status=$(kubectl get pod "$mongo" -n "$mongo_ns" -o jsonpath='{.status.phase}')
+    if [[ "$pod_status" != "Running" ]]; then
+      echo "Error: $mongo is not ready (Status: $pod_status)"
+      mongo_error=1
+      continue
+    fi
     # Depending on the version of mongo we might have a sidecar.  We want to give kubectl the right container.
     if kubectl -n $mongo_ns get pod $mongo --no-headers |awk '{ print $2 }' |grep -q '[0-2]/2'; then
         mongo_container="-c mongodb"
@@ -497,6 +507,13 @@ zoos=$(kubectl get pod -n $zoo_ns -l 'nirmata.io/service.name in (zookeeper, zk)
 zoo_num=0
 zoo_leader=""
 for zoo in $zoos; do
+    # Checking the Zookeeper pods status
+    pod_status=$(kubectl get pod "$zoo" -n "$zoo_ns" -o jsonpath='{.status.phase}')
+    if [[ "$pod_status" != "Running" ]]; then
+      echo "Error: $zoo is not ready (Status: $pod_status)"
+      zoo_error=1
+      continue
+    fi
     curr_zoo=$(kubectl -n $zoo_ns exec $zoo -- sh -c "/opt/zookeeper-*/bin/zkServer.sh status" 2>&1|grep Mode)
     # High node counts indicate a resource issue or a cleanup failure.
     zoo_node_count=$(kubectl exec $zoo -n $zoo_ns -- sh -c "echo srvr | nc localhost 2181" |grep Node.count: |awk '{ print $3; }')
@@ -594,6 +611,12 @@ kafka_ns=$(kubectl get pod --all-namespaces -l nirmata.io/service.name=kafka --n
 kafkas=$(kubectl get pod -n $kafka_ns -l nirmata.io/service.name=kafka --no-headers | awk '{print $1}')
 kaf_num=0
 for kafka in $kafkas; do
+    pod_status=$(kubectl get pod "$kafka" -n "$kafka_ns" -o jsonpath='{.status.phase}')
+    if [[ "$pod_status" != "Running" ]]; then
+        echo "Error: $kafka is not ready (Status: $pod_status)"
+        kaf_error=1
+        continue
+    fi
     echo "Found Kafka Pod $kafka"
     kafka_df=$(kubectl -n $kafka_ns exec $kafka -- df /var/lib/kafka | awk '{ print $5; }' |tail -1|sed s/%//)
     [[ $kafka_df -gt $df_free ]] && error "Found Kafka volume at ${kafka_df}% usage on $kafka"
@@ -610,6 +633,33 @@ fi
 [[ $kaf_error -eq 0 ]] && good "Kafka passed tests"
 # Is there more to test is it enough that the zookeeper test verifies the number of connection?
 }
+
+
+check_deployments() {
+  echo "Checking Deployments in Namespace: $namespace"
+  deployments=$(kubectl get deployments -n "$namespace" -o jsonpath='{.items[*].metadata.name}' | tr " " "\n")
+  error_count=0
+
+  for deployment in $deployments; do
+    echo "Checking $deployment deployment"
+    replica_count=$(kubectl get deployment "$deployment" -n "$namespace" -o jsonpath='{.spec.replicas}')
+    available_replicas=$(kubectl get deployment "$deployment" -n "$namespace" -o jsonpath='{.status.availableReplicas}')
+
+    if [[ $available_replicas -ne $replica_count ]]; then
+      error "Deployment $deployment is not ready"
+      error_count=$((error_count + 1))
+    else
+      good "Deployment $deployment is available"
+    fi
+  done
+
+  if [[ $error_count -eq 0 ]]; then
+    good "All deployments passed tests"
+  else
+    error "Some deployments failed tests"
+  fi
+}
+
 
 #function to email results
 do_email(){
@@ -1165,6 +1215,12 @@ fi
 #This tests nirmata's kafka (needs work, but Kafka only seems to have issues when zk does)
 if [[ $run_kafka -eq 0 ]];then
     kafka_test
+fi
+
+# This tests nirmata deployment
+if [[ $run_deploy -eq 0 ]];then
+    kubectl get namespace $namespace >/dev/null || error "Can not find namespace $namespace tests may fail!!!"
+    check_deployments
 fi
 
 if [ $error != 0 ];then
