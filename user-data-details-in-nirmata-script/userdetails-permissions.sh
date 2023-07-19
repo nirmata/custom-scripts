@@ -21,7 +21,7 @@ jq -r 'map(select(.role == "devops")) | .[] | [.name, .email] | @csv' >> user_de
         echo "Username,Environment Name,Environment Permission" > output.csv
 	for claclid in $(cat cluster_aclids.txt)
         do
-		curl -s --location "$NIRMATAURL/environments/api/entityPermissions?entityType=user&entityId=$claclid" --header "Authorization: NIRMATA-API $TOKEN" | \
+		curl -s --location "$NIRMATAURL/cluster/api/entityPermissions?entityType=user&entityId=$claclid" --header "Authorization: NIRMATA-API $TOKEN" | \
 jq -r '.permissions | .entityName as $username | .clusters[] |
        [$username] +
        (.environments[]? | [.environmentName, .environmentPermission]) |
