@@ -1,26 +1,26 @@
 #!/bin/bash
+  if [ "$#" -ne 3 ]; then
+    echo "Usage: $0 health_script_path nadm_directory backup_directory"
+    exit 1
+  fi
 
-if [ "$#" -ne 2 ]; then
-  echo "Usage: $0 nadm_directory backup_directory"
-  exit 1
-fi
+  health_script_path=$1
+  nadm_directory=$2
+  backup_directory=$3
 
-# Run the health script and capture the output
-health_output=$(./health_script.sh)
- 
-echo "Output of the health script:"
-echo "---------------------------"
-echo "$health_output"
-echo "---------------------------"
+  # Run the health script and capture the output
+  health_output=$("$health_script_path")
 
-    echo "==========================================================="
+  echo "Output of the health script:"
+  echo "$health_output"
+      echo "==========================================================="
 
 # Check if the desired string is present in the output
 if [[ $health_output == *"Warn: WiredTiger"* ]]; then
   echo "Executing script because 'Warn: WiredTiger' was found in the health script output"
 
-    nadm_directory=$1
-    backup_directory=$2
+    nadm_directory=$2
+    backup_directory=$3
 
     echo "--------Taking the Mongo backup--------"
 
@@ -420,7 +420,8 @@ if [[ $health_output == *"Warn: WiredTiger"* ]]; then
     echo "---Running Health Check Script to verify Nirmata Shared Services Health---"
 
 
-    echo " Mongodb Cleanup is done, Please check from UI side: Nirmata is up? Clusters are ready? Env is showing up ? Users can log in?"
+    echo " Mongodb Cleanup is done"
+    echo "Please check from UI side: Nirmata is up? Clusters are ready? Env is showing up ? Users can log in?"
 else
   echo "'Warn: WiredTiger' not found in the health script output. Exiting."
 fi
