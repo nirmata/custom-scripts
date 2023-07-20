@@ -1,21 +1,6 @@
   This script is used for fetching details like namespaces, deployments, serviceaccounts and clusterroles for PSP migration. 
 
-
-  Usage: 
-
- 
-<ins>**Prerequisites:**</ins>
-
-- Make sure `curl` and `jq` are installed on the machine where you are running this script
-
 <ins>**Usage:**</ins>
-
-Execute the script with the required arguments and provide the Nirmata API token for your tenant. 
-
-Required Arguments:
-```sh
-$1 - Nirmata URL
-```
 
 ```sh
 
