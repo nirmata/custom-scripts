@@ -674,7 +674,6 @@ fi
 # Is there more to test is it enough that the zookeeper test verifies the number of connection?
 }
 
-
 check_deployments() {
   echo "Checking Deployments in Namespace: $namespace"
   deployments=$(kubectl get deployments -n "$namespace" -o jsonpath='{.items[*].metadata.name}' | tr " " "\n")
@@ -683,11 +682,13 @@ check_deployments() {
   for deployment in $deployments; do
     echo "Checking $deployment deployment"
     replica_count=$(kubectl get deployment "$deployment" -n "$namespace" -o jsonpath='{.spec.replicas}')
-    available_replicas=$(kubectl get deployment "$deployment" -n "$namespace" -o jsonpath='{.status.availableReplicas}')
     ready_count=$(kubectl get deployment "$deployment" -n "$namespace" -o jsonpath='{.status.readyReplicas}')
 
-    if [[ $available_replicas -ne $replica_count ]]; then
-      error "Deployment $deployment is not ready (Ready: $ready_count/$replica_count)"
+    if [[ -z "$ready_count" ]]; then
+      error "Deployment $deployment is not ready (Ready: 0/$replica_count)"
+      error_count=$((error_count + 1))
+    elif [[ $ready_count -ne $replica_count ]]; then
+      error "Deployment $deployment is not fully available (Ready: $ready_count/$replica_count)"
       error_count=$((error_count + 1))
     else
       good "Deployment $deployment is available (Ready: $ready_count/$replica_count)"
