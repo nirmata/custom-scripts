@@ -19,14 +19,19 @@ $1 - Nirmata URL
 
 ```sh
 
-[root@saas delete-old-users]# ./list-users.sh https://nirmata.io
-Enter the Nirmata API token:
+[root@saas ]# ./get-ns-deploy-svcaccnt-cr.sh
 
--------------------------------------------------
-Generating the csv file with the list of users...
--------------------------------------------------
-
-users.csv file generated successfully
-
+------------------------------------------------------------------------------------------------------------------------------------------------------
+NAMESPACE                                APP                                      SERVICEACCOUNT                           CLUSTERROLE 
+------------------------------------------------------------------------------------------------------------------------------------------------------
+kube-system                              coredns                                  coredns                                  system:coredns
+kyverno                                  kyverno                                  kyverno                                  kyverno     
+kyverno                                  kyverno-cleanup-controller               kyverno-cleanup-controller               kyverno:cleanup-controller
+local-path-storage                       local-path-provisioner                   local-path-provisioner-service-account   local-path-provisioner-role
+nirmata                                  nirmata-kube-controller                  nirmata                                  nirmata:nirmata-privileged
+nirmata                                  nirmata-kube-controller                  nirmata                                  nirmata:policyexception-manager
+kube-system                              kindnet                                  kindnet                                  kindnet     
+kube-system                              kube-proxy                               kube-proxy                               system:node-proxier
+------------------------------------------------------------------------------------------------------------------------------------------------------
 ```
 
