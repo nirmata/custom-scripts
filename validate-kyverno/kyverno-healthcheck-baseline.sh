@@ -318,7 +318,7 @@ if kubectl get servicemonitor -A 2> /dev/null | grep $KYSVCMONITOR 1> /dev/null;
                     prometheusmetrics 2>&1 | tee -a BaselineReport.txt
                     tarreport
             else
-                    echo "Prometheus EP is unreachable or incorrect. Prometheus metrics for Kyverno will not be fetched!\n"
+                    echo "Prometheus EP is unreachable or incorrect. Prometheus metrics for Kyverno will not be fetched!\n" | tee -a BaselineReport.txt
                     tarreport
             fi
 
