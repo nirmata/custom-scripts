@@ -126,7 +126,7 @@ if [[ $health_output == *"Warn: WiredTiger"* ]]; then
         echo "Nirmata services are still running."
     fi
 
-    sleep 10
+    sleep 30
     echo "==========================================================="
 
 
@@ -135,8 +135,8 @@ if [[ $health_output == *"Warn: WiredTiger"* ]]; then
     # Scale down the Tunnel StatefulSet to 0 replicas
     kubectl scale sts tunnel -n nirmata --replicas=0
 
-    echo "Waiting for 10 seconds..."
-    sleep 10
+    echo "Waiting for 60 seconds..."
+    sleep 60
 
     echo "--------Checking if the Tunnel Service is down------"
 
@@ -149,7 +149,7 @@ if [[ $health_output == *"Warn: WiredTiger"* ]]; then
         echo "The Tunnel Service is still running. Pod count: $pod_count"
     fi
 
-    sleep 5
+    sleep 20
     echo "==========================================================="
 
 
@@ -159,8 +159,8 @@ if [[ $health_output == *"Warn: WiredTiger"* ]]; then
     # Scale down the MongoDB StatefulSet to 0 replicas
     kubectl scale sts mongodb -n nirmata --replicas=0
 
-    echo "Waiting for 20 seconds..."
-    sleep 20
+    echo "Waiting for 60 seconds..."
+    sleep 60
 
     echo "--------Checking if the MongoDB Service is down------"
 
@@ -173,7 +173,7 @@ if [[ $health_output == *"Warn: WiredTiger"* ]]; then
         echo "The MongoDB Service is still running. Pod count: $pod_count"
     fi
 
-    sleep 5
+    sleep 20
     echo "==========================================================="
 
     echo "------Listing MongoDB PVCs---------"
@@ -280,7 +280,7 @@ if [[ $health_output == *"Warn: WiredTiger"* ]]; then
 
       attempt=$((attempt + 1))
       if [ "$attempt" -le "$max_attempts" ]; then
-        sleep 10
+        sleep 20
       else
         echo "Failed to scale up MongoDB pods within the specified time."
         exit 1  # Exit the script with a non-zero status indicating failure
@@ -311,7 +311,7 @@ if [[ $health_output == *"Warn: WiredTiger"* ]]; then
 
     cd "$current_directory" || exit
 
-    sleep 5
+    sleep 30
     echo "==========================================================="
 
     echo "-------Scale up the Tunnel service to count 2---------"
@@ -319,8 +319,8 @@ if [[ $health_output == *"Warn: WiredTiger"* ]]; then
 
     echo "==========================================================="
 
-    echo "--------Sleeping for 10 seconds--------"
-    sleep 10
+    echo "--------Sleeping for 60 seconds--------"
+    sleep 60
 
         echo "==========================================================="
 
@@ -328,7 +328,7 @@ if [[ $health_output == *"Warn: WiredTiger"* ]]; then
     tunnel_pods=$(kubectl get pods -n nirmata -l nirmata.io/statefulset.name=tunnel)
     tunnel_pod_count=$(echo "$tunnel_pods" | grep -c Running)
 
-    sleep 5
+    sleep 20
 
     if [ "$tunnel_pod_count" -eq 2 ]; then
       echo "Tunnel pods are scaled up and running."
@@ -337,7 +337,7 @@ if [[ $health_output == *"Warn: WiredTiger"* ]]; then
       echo "$tunnel_pods"
     fi
 
-    sleep 5
+    sleep 20
     echo "==========================================================="
 
     echo "---------Scale up the Nirmata Services------------"
