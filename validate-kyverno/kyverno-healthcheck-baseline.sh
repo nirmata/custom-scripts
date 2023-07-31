@@ -12,7 +12,13 @@ urlencode() {
     done
 }
 
+etcdmessage() {
 
+if [[ $? != 0 ]]; then
+    echo "Unable to fetch data. Please run \"kubectl get --raw /metrics\" and check if you get any output"
+fi
+
+}
 
 report() {
 
@@ -65,23 +71,27 @@ echo "Cloud Provider/Infrastructure: $cloudprovider"
 echo
 echo "Total size of the etcd database file physically allocated in bytes:"
 kubectl get --raw /metrics 2> /dev/null | grep "etcd_db_total_size_in_bytes" | grep -v "^#"
+etcdmessage
 echo
 echo "Top objects in etcd:"
 #echo "---------------------------"
 if [[ $k8s_version_tmp > 1.22.0 ]]; then
-        # echo " - Objects in ETCD:"
-        # for k in $()
-        kubectl get --raw=/metrics 2> /dev/null | grep apiserver_storage_objects |awk '$2>100' |sort -g -k 2
-        #do
-        #       echo "   - $k"
-        #done
+        kubectl get --raw=/metrics > /dev/null 2>&1
+        if [[ $? != 0 ]]; then
+                echo "Unable to fetch data. Please run \"kubectl get --raw /metrics\" and check if you get any output"
+        else
+                kubectl get --raw=/metrics 2> /dev/null | grep apiserver_storage_objects |awk '$2>100' |sort -g -k 2
+        fi
+
+
 else
         echo "- Objects in ETCD:"
-        #for p in $()
-        kubectl get --raw=/metrics 2> /dev/null | grep etcd_object_counts |awk '$2>100' |sort -g -k 2
-        #do
-        #       echo "   - $p"
-        #done
+        kubectl get --raw=/metrics > /dev/null 2>&1
+        if [[ $? != 0 ]]; then
+                echo "Unable to fetch data. Please run \"kubectl get --raw /metrics\" and check if you get any output"
+        else
+                kubectl get --raw=/metrics 2> /dev/null | grep etcd_object_counts |awk '$2>100' |sort -g -k 2
+        fi
 fi
 
 kobjects=$(kubectl api-resources --no-headers | awk '{ print $1}' | sort | uniq)
@@ -270,6 +280,13 @@ fi
 }
 ## main
 
+#Check the operating system
+if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
+  echo -e "\nScript cannot be run on a Windows machine. Exiting...\n"
+  exit 1
+fi
+
+
 if [[ $# != 2 ]]; then
         echo -e "\nUsage: $0 <Servicemonitor name for Kyverno> <Prometheus EP (IP:PORT)>"
         echo -e "\nExample: $0 service-monitor-kyverno-service 10.14.1.73:9090"
@@ -283,12 +300,6 @@ prom_url=$2
 mkdir temp 2> /dev/null
 cd temp
 rm -rf BaselineReport.txt kyverno baselinereport.tar 2> /dev/null
-
-#Check the operating system
-if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
-  echo -e "\nScript cannot be run on a Windows machine. Exiting...\n"
-  exit 1
-fi
 
 report 2>&1 | tee -a BaselineReport.txt
 
@@ -318,7 +329,7 @@ if kubectl get servicemonitor -A 2> /dev/null | grep $KYSVCMONITOR 1> /dev/null;
                     prometheusmetrics 2>&1 | tee -a BaselineReport.txt
                     tarreport
             else
-                    echo "Prometheus EP is unreachable or incorrect. Prometheus metrics for Kyverno will not be fetched!\n"
+                    echo "Prometheus EP is unreachable or incorrect. Prometheus metrics for Kyverno will not be fetched!\n" | tee -a BaselineReport.txt
                     tarreport
             fi
 
