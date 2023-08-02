@@ -5,9 +5,9 @@ kubectl get sts -A -o jsonpath="{range .items[*]}{.metadata.namespace}{'\t'}{.me
 kubectl get ds -A -o jsonpath="{range .items[*]}{.metadata.namespace}{'\t'}{.metadata.name}{'\t'}{.spec.template.spec.serviceAccount}{'\n'}{end}" >> deploy-serva
 kubectl get cronjob -A -o jsonpath="{range .items[*]}{.metadata.namespace}{'\t'}{.metadata.name}{'\t'}{.spec.template.spec.serviceAccount}{'\n'}{end}" >> deploy-serva
 echo
-echo "-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------"
-printf '%-40s %-40s %-40s %-40s %-40s %-40s\n' NAMESPACE APP SERVICEACCOUNT CLUSTERROLE CLUSTERROLEBINDING ROLEBINDING
-echo "-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------"
+echo "------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------"
+printf '%-30s %-30s %-30s %-30s %-30s %-30s %-30s\n' NAMESPACE APP SERVICEACCOUNT CLUSTERROLE CLUSTERROLEBINDING ROLE ROLEBINDING
+echo "---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------"
 
 while read -r line;
 do
@@ -27,11 +27,12 @@ do
         clusterrole=$(kubectl get clusterrolebinding --all-namespaces -o jsonpath='{range .items[?(@.subjects[0].name=="'$svcaccount'")]}[{.roleRef.name}]{end}' | tr '][' '\n' | sed '/^$/d')
         clusterrolebdng=$(kubectl get clusterrolebinding --all-namespaces -o jsonpath='{range .items[?(@.subjects[0].name=="'$svcaccount'")]}[{.metadata.name}]{end}' | tr '][' '\n' | sed '/^$/d')
         rolebinding=$(kubectl get rolebinding --all-namespaces -o jsonpath='{range .items[?(@.subjects[0].name=="'$svcaccount'")]}[{.metadata.name}]{end}' | tr '][' '\n' | sed '/^$/d')
+        role=$(kubectl get rolebinding --all-namespaces -o jsonpath='{range .items[?(@.subjects[0].name=="'$svcaccount'")]}[{.roleRef.name}]{end}' | tr '][' '\n' | sed '/^$/d')
         for cr in $clusterrole
         do
-            printf '%-40s %-40s %-40s %-40s %-40s %-40s\n' $namespace $deployment $svcaccount $cr $clusterrolebdng $rolebinding
+            printf '%-30s %-30s %-30s %-30s %-30s %-30s %-30s\n' $namespace $deployment $svcaccount $cr $clusterrolebdng $role $rolebinding
         done
 done < deploy-serva
 
-echo "-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------"
+echo "---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------"
 echo
