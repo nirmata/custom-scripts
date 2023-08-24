@@ -9,8 +9,8 @@
 #### Steps:
 1. Clone/Download Script from the repo.\
     `git clone https://github.com/nirmata/custom-scripts.git `
-2. Switch to 1.13.1 branch <br />
-   `cd custom-scripts; git switch rhel8`
+2. Switch to rhel8 branch <br />
+   `cd custom-scripts; git checkout rhel8`
 3. Navigate to migrate_container_runtime folder\
     `cd migrate_container_runtime`
 3. Add execute permission to the script.\
