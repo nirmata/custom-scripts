@@ -28,6 +28,7 @@ spec:
           nodeSelector: {}
           serviceAccountName: "nirmata-test-sa"
           serviceAccount: "nirmata-test-sa"
+          automountServiceAccountToken: false
           schedulerName: "default-scheduler"
           dnsPolicy: "ClusterFirst"
           volumes:
