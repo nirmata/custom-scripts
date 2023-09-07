@@ -14,8 +14,9 @@ This folder contains two essential scripts to help manage MongoDB backups effici
 To back up the databases, use the following command:
 ```sh
 ./backup-mongo.sh
-
+```
 ### Restore
 To restore the databases, use the following command with the appropriate path:
 ```sh
 ./restore.sh <path_to_dump_files>
+```
