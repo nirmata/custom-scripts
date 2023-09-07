@@ -1,10 +1,16 @@
-This folder consists of 2 scripts. backup-mongo.sh script is used to backup mongodb databases using mongodump. To check the integrity of each backup, the dump file is restored to a test database and dbversion and object counts are compared between the actual database and the test database at a specific timestamp. Before running this script, make sure to create "/tmp/backup-nirmata" folder on the node where you run/schedule this script (as a crontab). The restore.sh is used to restore all the mongo databases  using mongorestore. The script takes one argument which is the path where all the dump files are stored. 
+# MongoDB Backup and Restore Scripts
 
-Usage: 
-To backup the databases, execute backup-mongo.sh script as follows
+This folder contains two essential scripts to help manage MongoDB backups efficiently:
+
+1. **backup-mongo.sh**: This script leverages `mongodump` to back up MongoDB databases. The integrity of each backup is verified by restoring the dump file to a test database. During this process, dbversion and object counts are compared between the actual database and the test database based on a specific timestamp. 
+   
+   Before you run this script, ensure that you create a `/tmp/backup-nirmata` folder on the node where you plan to run or schedule this script (potentially as a crontab job).
+   
+2. **restore.sh**: Utilizes `mongorestore` to restore all MongoDB databases. The script requires one argument: the path where all the dump files are stored.
+
+## Usage
+
+### Backup
+To back up the databases, use the following command:
+```sh
 ./backup-mongo.sh
-
-To restore the databases, execute restore.sh script as follows
-./restore.sh <path-to-dump-files>
-
-
