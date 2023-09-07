@@ -51,9 +51,8 @@ awk 'NR > 2 && $4 == "'"$EXCLUDE_SECURITY_CONTEXT"'" {
       print "            namespaces:"
       print "              - " current_namespace
       print "            names:"
-      print "              - " pod_names[1]
-      for (i = 2; i <= length(pod_names); i++) {
-        print "                  " pod_names[i]
+      for (i = 1; i <= length(pod_names); i++) {
+        print "              - " pod_names[i]
       }
     }
     # Start a new resource section for the current namespace
@@ -73,9 +72,8 @@ awk 'NR > 2 && $4 == "'"$EXCLUDE_SECURITY_CONTEXT"'" {
       print "            namespaces:"
       print "              - " current_namespace
       print "            names:"
-      print "              - " pod_names[1]
-    for (i = 2; i <= length(pod_names); i++) {
-      print "                  " pod_names[i]
+    for (i = 1; i <= length(pod_names); i++) {
+      print "              - " pod_names[i]
     }
   }
 }' "$TEXT_FILE" >> "$OUTPUT_YAML"
