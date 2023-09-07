@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Check for correct number of arguments
+# Check for the correct number of arguments
 if [ "$#" -ne 5 ]; then
   echo "Usage: $0 <text_file_path> <file_name> <rule_name> <exclude_SECURITY_CONTEXT_CONSTRAINT> <match_SECURITY_CONTEXT_CONSTRAINT>"
   exit 1
@@ -44,7 +44,7 @@ pod_names=()
 awk 'NR > 2 && $4 == "'"$EXCLUDE_SECURITY_CONTEXT"'" {
   if ($1 != current_namespace) {
     if (current_namespace != "") {
-      # Close the previous resource section
+      # Close the previous resource section for exclude
       print "        - resources:"
       print "            kinds:"
       print "              - Pod"
@@ -65,13 +65,13 @@ awk 'NR > 2 && $4 == "'"$EXCLUDE_SECURITY_CONTEXT"'" {
   }
 } END {
   if (current_namespace != "") {
-    # Close the last resource section
-      print "        - resources:"
-      print "            kinds:"
-      print "              - Pod"
-      print "            namespaces:"
-      print "              - " current_namespace
-      print "            names:"
+    # Close the last resource section for exclude
+    print "        - resources:"
+    print "            kinds:"
+    print "              - Pod"
+    print "            namespaces:"
+    print "              - " current_namespace
+    print "            names:"
     for (i = 1; i <= length(pod_names); i++) {
       print "              - " pod_names[i]
     }
@@ -84,15 +84,46 @@ cat <<EOF >> "$OUTPUT_YAML"
         any:
 EOF
 
-# Read data from the text file again and append to the YAML for match section
+# Initialize variables for the match section
+current_namespace_match=""
+pod_names_match=()
+
+# Read data from the text file and append to the YAML for match section
 awk 'NR > 2 && $4 == "'"$MATCH_SECURITY_CONTEXT"'" {
-  print "        - resources:"
-  print "            kinds:"
-  print "              - Pod"
-  print "            namespaces:"
-  print "              - " $1
-  print "            names:"
-  print "              - " $2
+  if ($1 != current_namespace_match) {
+    if (current_namespace_match != "") {
+      # Close the previous resource section for match
+      print "          - resources:"
+      print "              kinds:"
+      print "                - Pod"
+      print "              namespaces:"
+      print "                - " current_namespace_match
+      print "              names:"
+      for (i = 1; i <= length(pod_names_match); i++) {
+        print "                - " pod_names_match[i]
+      }
+    }
+    # Start a new resource section for the current namespace for match
+    current_namespace_match=$1
+    delete pod_names_match
+    pod_names_match[1]=$2
+  } else {
+    # Append the pod name to the current namespace for match
+    pod_names_match[length(pod_names_match) + 1]=$2
+  }
+} END {
+  if (current_namespace_match != "") {
+    # Close the last resource section for match
+    print "          - resources:"
+    print "              kinds:"
+    print "                - Pod"
+    print "              namespaces:"
+    print "                - " current_namespace_match
+    print "              names:"
+    for (i = 1; i <= length(pod_names_match); i++) {
+      print "                - " pod_names_match[i]
+    }
+  }
 }' "$TEXT_FILE" >> "$OUTPUT_YAML"
 
 echo "Kyverno policy saved to $OUTPUT_YAML"
