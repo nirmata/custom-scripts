@@ -93,14 +93,14 @@ awk 'NR > 2 && $4 == "'"$MATCH_SECURITY_CONTEXT"'" {
   if ($1 != current_namespace_match) {
     if (current_namespace_match != "") {
       # Close the previous resource section for match
-      print "          - resources:"
-      print "              kinds:"
-      print "                - Pod"
-      print "              namespaces:"
-      print "                - " current_namespace_match
-      print "              names:"
+      print "        - resources:"
+      print "            kinds:"
+      print "              - Pod"
+      print "            namespaces:"
+      print "              - " current_namespace_match
+      print "            names:"
       for (i = 1; i <= length(pod_names_match); i++) {
-        print "                - " pod_names_match[i]
+        print "              - " pod_names_match[i]
       }
     }
     # Start a new resource section for the current namespace for match
@@ -114,14 +114,14 @@ awk 'NR > 2 && $4 == "'"$MATCH_SECURITY_CONTEXT"'" {
 } END {
   if (current_namespace_match != "") {
     # Close the last resource section for match
-    print "          - resources:"
-    print "              kinds:"
-    print "                - Pod"
-    print "              namespaces:"
-    print "                - " current_namespace_match
-    print "              names:"
+    print "        - resources:"
+    print "            kinds:"
+    print "              - Pod"
+    print "            namespaces:"
+    print "              - " current_namespace_match
+    print "            names:"
     for (i = 1; i <= length(pod_names_match); i++) {
-      print "                - " pod_names_match[i]
+      print "              - " pod_names_match[i]
     }
   }
 }' "$TEXT_FILE" >> "$OUTPUT_YAML"
