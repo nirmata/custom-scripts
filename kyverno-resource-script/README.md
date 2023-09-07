@@ -1,45 +1,49 @@
 # Kyverno Policy Generator
 
-This Bash script generates a Kyverno policy YAML file based on data from a CSV file. The generated policy includes only pods that do not have a "restricted-v2" SECURITY_CONTEXT_CONSTRAINT.
+This Bash script generates Kyverno policy YAML files based on data from a text file. It simplifies the process of creating Kyverno policies by allowing you to specify rules, exclusions, and inclusions easily.
+
+## Table of Contents
+- [Prerequisites](#prerequisites)
+- [Usage](#usage)
+- [Example](#example)
 
 ## Prerequisites
 
-Before using this script, ensure you have the following:
+Before using this script, ensure that you have the following:
 
-- A Bash shell environment.
-- A CSV file named `kyverno-resource-data.csv` with the following columns:
-  - NAMESPACE
-  - POD_NAME
-  - SERVICEACCOUNT
-  - SECURITY_CONTEXT_CONSTRAINT
+- **Bash**: Make sure you have Bash (Bourne-Again SHell) installed on your system.
 
 ## Usage
 
-1. Place your CSV file with the required data in the same directory as this script.
+Follow these steps to generate Kyverno policy YAML files using the script:
 
-2. Execute the script:
-
-   ```bash
-   ./generate-kyverno-policy.sh
+1. **Make the Script Executable**: 
+   ```
+   chmod +x script.sh
    ```
 
-3. The script will create a Kyverno policy YAML file named `kyverno.yaml` in the same directory.
+2. **Run the Script**:
+   ```
+   ./script.sh <text_file_path> <file_name> <rule_name> <exclude_SECURITY_CONTEXT_CONSTRAINT> <match_SECURITY_CONTEXT_CONSTRAINT>
+   ```
 
-## Kyverno Policy Generation
+   - `<text_file_path>`: Path to the text file containing your data.
+   - `<file_name>`: Desired name for the output YAML file.
+   - `<rule_name>`: Name of the Kyverno rule.
+   - `<exclude_SECURITY_CONTEXT_CONSTRAINT>`: Security context constraint to exclude from the policy.
+   - `<match_SECURITY_CONTEXT_CONSTRAINT>`: Security context constraint to include in the policy.
 
-The script reads data from the CSV file and generates a Kyverno policy that includes the following:
+3. **Generated Kyverno Policy**:
+   The script will create a Kyverno policy YAML file with the specified rule names and context constraints.
 
-- `apiVersion` and `kind` for Kyverno ClusterPolicy.
-- A rule named `include-pods-non-restricted-v2` to match resources of kind `Pod`.
+## Example
 
-For each entry in the CSV file that does not have "restricted-v2" in the SECURITY_CONTEXT_CONSTRAINT column, the script appends a resource block to the Kyverno policy YAML. This block specifies the namespace and pod name to include.
+For instance, if you want to generate a policy file named `vktest.yaml` based on data in the `nonprod_script.txt` file, excluding pods with the `restricted-v2` security context constraint and including pods with the `nonroot-anyuid` security context constraint, you can use the following command:
 
-## Output
+```bash
+./script.sh nonprod_script.txt vktest restricted-v2 nonroot-anyuid
+```
 
-The generated Kyverno policy is saved to a file named `kyverno.yaml` in the same directory as the script.
+This command will generate the policy and save it as `vktest.yaml`.
 
-## Troubleshooting
-
-If the CSV file (`kyverno-resource-data.csv`) is not found in the script's directory, an error message will be displayed.
-
-Make sure to create a CSV file named `kyverno-resource-data.csv` in the same directory as the script, and ensure that it has the specified columns (NAMESPACE, POD_NAME, SERVICEACCOUNT, SECURITY_CONTEXT_CONSTRAINT) before running the script.
+---
