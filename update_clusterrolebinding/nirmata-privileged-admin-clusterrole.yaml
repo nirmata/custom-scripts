@@ -196,7 +196,6 @@ rules:
   - configmaps
   - endpoints
   - gateways
-  - httproutes
   - events
   - persistentvolumeclaims
   - persistentvolumeclaims/status
@@ -214,6 +213,24 @@ rules:
   - get
   - list
   - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - httproutes
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - update
+  - get
+  - list
+  - watch
+- apiGroups:
+  - route.openshift.io
+  resources:
+  - routes/custom-host
+  verbs:
+  - create
 - apiGroups:
   - ""
   resources:
@@ -560,8 +577,12 @@ rules:
   - issuers
   - issuers/status
   - clusterissuers
+  - clusterissuers/status
   - certificaterequests
   - certificates
+  - certificates/finalizers
+  - certificates/status
+  - certificaterequests/finalizers
   verbs:
   - create
   - delete
@@ -575,6 +596,9 @@ rules:
   - acme.cert-manager.io
   resources:
   - orders
+  - orders/status
+  - orders/finalizers
+  - challenges/status
   - challenges
   verbs:
   - create
