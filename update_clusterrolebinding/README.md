@@ -8,14 +8,22 @@ This script is designed to update Kubernetes ClusterRoles and ClusterRoleBinding
 
 ## Usage
 
-1. Clone this repository to your local machine or download the script.
+1. Clone this repository to your local machine:
 
-2. Navigate to the directory containing the script.
+   ```bash
+   git clone https://github.com/nirmata/custom-scripts
+   ```
+
+2. Change to the directory containing the update script:
+
+   ```bash
+   cd custom-scripts/update_clusterrolebinding/
+   ```
 
 3. Make the script executable if necessary:
 
    ```bash
-   chmod +x update-clusterrole.sh
+   chmod +x clusterolebinding_update.sh
    ```
 
 4. Edit the script to set the following variables:
@@ -27,7 +35,7 @@ This script is designed to update Kubernetes ClusterRoles and ClusterRoleBinding
 5. Run the script:
 
    ```bash
-   ./update-clusterrole.sh
+   ./clusterolebinding_update.sh
    ```
 
 ## Script Behavior
