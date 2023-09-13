@@ -20,6 +20,7 @@ rules:
   - ""
   resources:
   - serviceaccounts
+  - nodes
   verbs:
   - impersonate
   - create
@@ -143,30 +144,10 @@ rules:
   - events
   verbs:
   - create
-- apiGroups:
-  - ""
-  resources:
-  - events
-  verbs:
   - delete
-- apiGroups:
-  - ""
-  resources:
-  - events
-  verbs:
   - deletecollection
-- apiGroups:
-  - ""
-  resources:
-  - events
-  verbs:
-  - patch
-- apiGroups:
-  - ""
-  resources:
-  - events
-  verbs:
   - update
+  - patch
 - apiGroups:
   - ""
   resources:
@@ -184,48 +165,13 @@ rules:
   resources:
   - leases
   verbs:
-  - create
-- apiGroups:
-  - coordination.k8s.io
-  resources:
-  - leases
-  verbs:
-  - delete
-- apiGroups:
-  - coordination.k8s.io
-  resources:
-  - leases
-  verbs:
   - deletecollection
-- apiGroups:
-  - coordination.k8s.io
-  resources:
-  - leases
-  verbs:
-  - get
-- apiGroups:
-  - coordination.k8s.io
-  resources:
-  - leases
-  verbs:
+  - delete
+  - create
   - list
-- apiGroups:
-  - coordination.k8s.io
-  resources:
-  - leases
-  verbs:
+  - get
   - patch
-- apiGroups:
-  - coordination.k8s.io
-  resources:
-  - leases
-  verbs:
   - update
-- apiGroups:
-  - coordination.k8s.io
-  resources:
-  - leases
-  verbs:
   - watch
 - apiGroups:
   - metrics.k8s.io
@@ -233,8 +179,13 @@ rules:
   - pods
   - nodes
   verbs:
-  - get
+  - deletecollection
+  - delete
+  - create
   - list
+  - get
+  - patch
+  - update
   - watch
 - apiGroups:
   - ""
@@ -252,6 +203,21 @@ rules:
   - serviceaccounts
   - services
   - services/status
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - update
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - bindings
+  - events
+  - limitranges
+  - resourcequotas
   verbs:
   - create
   - delete
@@ -369,18 +335,8 @@ rules:
   - endpointslices
   verbs:
   - get
-- apiGroups:
-  - discovery.k8s.io
-  resources:
-  - endpointslices
-  verbs:
-  - list
-- apiGroups:
-  - discovery.k8s.io
-  resources:
-  - endpointslices
-  verbs:
   - watch
+  - list
 - apiGroups:
   - kyverno.io
   resources:
@@ -481,7 +437,7 @@ rules:
   - snapshot.storage.k8s.io
   resources:
   - volumesnapshotclasses
-  - volumesnapshotcontents 
+  - volumesnapshotcontents
   - volumesnapshots
   verbs:
   - create
@@ -535,7 +491,7 @@ rules:
 - apiGroups:
   - apiregistration.k8s.io
   resources:
-  - apiservice
+  - apiservices
   verbs:
   - create
   - delete
@@ -584,6 +540,19 @@ rules:
   - apiextensions.k8s.io
   resources:
   - customresourcedefinitions
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - cert-manager.io
+  resources:
+  - certificates
   verbs:
   - create
   - delete
