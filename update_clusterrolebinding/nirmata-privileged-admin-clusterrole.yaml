@@ -10,6 +10,8 @@ rules:
   - pods/exec
   - pods/portforward
   - pods/proxy
+  - nodes/proxy
+  - nodes/metrics
   - secrets
   - services/proxy
   verbs:
@@ -107,6 +109,7 @@ rules:
   - deployments/rollback
   - deployments/scale
   - ingresses
+  - endpoints
   - networkpolicies
   - replicasets
   - replicasets/scale
@@ -300,6 +303,7 @@ rules:
   - deployments/scale
   - deployments/status
   - ingresses
+  - endpoints
   - ingresses/status
   - networkpolicies
   - replicasets
@@ -553,6 +557,11 @@ rules:
   - cert-manager.io
   resources:
   - certificates
+  - issuers
+  - issuers/status
+  - clusterissuers
+  - certificaterequests
+  - certificates
   verbs:
   - create
   - delete
@@ -563,13 +572,9 @@ rules:
   - update
   - watch
 - apiGroups:
-  - ""
+  - acme.cert-manager.io
   resources:
   - orders
-  - certificaterequests
-  - certificates
-  - issuers
-  - clusterissuers
   - challenges
   verbs:
   - create
