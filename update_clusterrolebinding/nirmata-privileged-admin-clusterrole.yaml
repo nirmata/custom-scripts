@@ -21,6 +21,7 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - componentstatuses
   - serviceaccounts
   - nodes
   verbs:
