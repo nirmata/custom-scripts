@@ -19,14 +19,31 @@ rules:
   - list
   - watch
 - apiGroups:
-  - ""
+  - crd.projectcalico.org
   resources:
-  - componentstatuses
-  - serviceaccounts
-  - nodes
+  - bgpconfigurations
+  - bgpfilters
+  - bgppeers
+  - blockaffinities
+  - caliconodestatuses
+  - clusterinformations
+  - felixconfigurations
+  - globalnetworkpolicies
+  - globalnetworksets
+  - hostendpoints
+  - ipamblocks
+  - ipamconfigs
+  - ipamhandles
+  - ippools
+  - ipreservations
+  - kubecontrollersconfigurations
+  - networkpolicies
+  - networksets
+  - profiles
   verbs:
   - impersonate
   - create
+  - deletecollection
   - update
   - delete
   - get
@@ -35,6 +52,37 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - serviceaccounts
+  - nodes
+  verbs:
+  - impersonate
+  - create
+  - deletecollection
+  - update
+  - delete
+  - get
+  - list
+  - watch
+- apiGroups:
+  - operator.tigera.io
+  resources:
+  - apiservers
+  - imagesets
+  - installations
+  - tigerastatuses
+  verbs:
+  - impersonate
+  - create
+  - deletecollection
+  - update
+  - delete
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - componentstatuses
   - pods
   - pods/attach
   - pods/exec
@@ -135,6 +183,8 @@ rules:
   - networking.k8s.io
   resources:
   - ingresses
+  - ingresses/finalizers
+  - ingressclasses
   - networkpolicies
   verbs:
   - create
@@ -217,7 +267,10 @@ rules:
 - apiGroups:
   - gateway.networking.k8s.io
   resources:
+  - gateways
+  - gateways/finalizers
   - httproutes
+  - httproutes/finalizers
   verbs:
   - create
   - delete
@@ -236,7 +289,11 @@ rules:
   - ""
   resources:
   - bindings
-  - events
+  verbs:
+  - create
+- apiGroups:
+  - ""
+  resources:
   - limitranges
   - resourcequotas
   verbs:
@@ -250,8 +307,6 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - bindings
-  - events
   - limitranges
   - namespaces/status
   - pods/log
@@ -273,6 +328,7 @@ rules:
   - get
   - list
   - watch
+  - patch
 - apiGroups:
   - apps
   resources:
@@ -347,6 +403,8 @@ rules:
   - ingresses
   - ingresses/status
   - networkpolicies
+  - ingresses/finalizers
+  - ingressclasses
   verbs:
   - get
   - list
@@ -356,16 +414,9 @@ rules:
   resources:
   - endpointslices
   verbs:
-  - get
-  - watch
-  - list
-- apiGroups:
-  - kyverno.io
-  resources:
-  - generaterequests
-  verbs:
   - create
   - delete
+  - deletecollection
   - get
   - list
   - patch
@@ -374,8 +425,17 @@ rules:
 - apiGroups:
   - kyverno.io
   resources:
-  - policies
+  - admissionreports
+  - generaterequests
+  - backgroundscanreports
+  - cleanuppolicies
+  - clusteradmissionreports
+  - clusterbackgroundscanreports
+  - clustercleanuppolicies
   - clusterpolicies
+  - policies
+  - policyexceptions
+  - updaterequests
   verbs:
   - create
   - delete
@@ -413,18 +473,6 @@ rules:
   - update
   - watch
 - apiGroups:
-  - kyverno.io
-  resources:
-  - updaterequests
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
   - authorization.k8s.io
   resources:
   - localsubjectaccessreviews
@@ -433,12 +481,6 @@ rules:
   - subjectaccessreviews
   verbs:
   - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
 - apiGroups:
   - rbac.authorization.k8s.io
   resources:
@@ -501,6 +543,7 @@ rules:
   - certificates.k8s.io
   resources:
   - certificatesigningrequests
+  - certificatesigningrequests/status
   verbs:
   - create
   - delete
@@ -515,6 +558,7 @@ rules:
   resources:
   - apiservices
   verbs:
+  - deletecollection
   - create
   - delete
   - get
@@ -541,22 +585,18 @@ rules:
   - tokenreviews
   verbs:
   - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
 - apiGroups:
   - ""
   resources:
   - events
   verbs:
   - create
-  - patch
-  - update
+  - delete
+  - deletecollection
   - get
   - list
+  - patch
+  - update
   - watch
 - apiGroups:
   - apiextensions.k8s.io
@@ -574,7 +614,6 @@ rules:
 - apiGroups:
   - cert-manager.io
   resources:
-  - certificates
   - issuers
   - issuers/status
   - clusterissuers
@@ -583,6 +622,7 @@ rules:
   - certificates
   - certificates/finalizers
   - certificates/status
+  - certificaterequests/status
   - certificaterequests/finalizers
   verbs:
   - create
@@ -594,12 +634,31 @@ rules:
   - update
   - watch
 - apiGroups:
+  - cert-manager.io
+  resources:
+  - signers
+  - certificates
+  resourceNames: ["clusterissuers.cert-manager.io/*", "issuers.cert-manager.io/*"]
+  verbs: 
+  - approve
+  - sign
+- apiGroups:
+  - certificates.k8s.io
+  resources:
+  - signers
+  - certificates
+  resourceNames: ["clusterissuers.cert-manager.io/*", "issuers.cert-manager.io/*"]
+  verbs: 
+  - approve
+  - sign
+- apiGroups:
   - acme.cert-manager.io
   resources:
   - orders
   - orders/status
   - orders/finalizers
   - challenges/status
+  - challenges/finalizers
   - challenges
   verbs:
   - create
@@ -610,3 +669,48 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - security.nirmata.io
+  - kyverno.io
+  resources:
+  - "*"
+  verbs:
+  - "*"
+- nonResourceURLs:
+  - "/metrics"
+  verbs:
+  - get
+- apiGroups:
+  - ""
+  resources:
+  -  componentstatuses
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - flowcontrol.apiserver.k8s.io
+  resources:
+  - flowschemas 
+  - prioritylevelconfigurations
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+  - deletecollection
+- apiGroups:
+  - node.k8s.io
+  resources:
+  - runtimeclasses
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+  - deletecollection
