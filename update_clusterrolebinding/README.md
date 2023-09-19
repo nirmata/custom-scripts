@@ -1,52 +1,41 @@
-# Kubernetes ClusterRole and ClusterRoleBinding Update Script
+# Kubernetes Cluster Role Configuration Script
 
-This script is designed to update Kubernetes ClusterRoles and ClusterRoleBindings by replacing an existing ClusterRole with a new one and updating or creating a ClusterRoleBinding.
+## Description
 
-## Prerequisites
-
-- [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/) is installed and configured to connect to your Kubernetes cluster.
+This Bash script allows you to configure ClusterRoles and ClusterRoleBindings for multiple Kubernetes clusters using a single script. It simplifies the process of setting up RBAC (Role-Based Access Control) for different clusters.
 
 ## Usage
 
-1. Clone this repository to your local machine:
+1. Ensure you have the `kubectl` command-line tool installed and configured with the necessary credentials.
+
+2. Clone this repository or download the script.
+
+3. Make the script executable:
 
    ```bash
-   git clone https://github.com/nirmata/custom-scripts
+   chmod +x configure-cluster-roles.sh
    ```
 
-2. Change to the directory containing the update script:
+4. Run the script with the following command:
 
    ```bash
-   cd custom-scripts/update_clusterrolebinding/
+   ./configure-cluster-roles.sh <kubeconfig_path> <cluster1> <cluster2> ...
    ```
 
-3. Make the script executable if necessary:
+   Replace `<kubeconfig_path>` with the path to your Kubernetes configuration file (kubeconfig), and provide a list of cluster names as arguments.
 
-   ```bash
-   chmod +x clusterolebinding_update.sh
-   ```
+## Example
 
-4. Edit the script to set the following variables:
+```bash
+./configure-cluster-roles.sh ~/.kube/config my-cluster-1 my-cluster-2
+```
 
-   - `CLUSTER_ROLE_NAME`: The name of the ClusterRole you want to update or create (e.g., `"nirmata:nirmata-privileged"`).
-   - `CLUSTER_ROLE_BINDING_NAME`: The name of the ClusterRoleBinding you want to update or create (e.g., `"nirmata-cluster-admin-binding"`).
-   - Ensure that your YAML files for the new ClusterRole and ClusterRoleBinding are named appropriately (e.g., `nirmata-privileged-admin-clusterrole.yaml` and `nirmata-cluster-admin-binding.yaml`).
+This will configure ClusterRoles and ClusterRoleBindings for `my-cluster-1` and `my-cluster-2`.
 
-5. Run the script:
+## Note
 
-   ```bash
-   ./clusterolebinding_update.sh
-   ```
+- The script assumes that you have appropriate permissions to create and manage ClusterRoles and ClusterRoleBindings within the specified clusters.
 
-## Script Behavior
+- It checks if the ClusterRoles and ClusterRoleBindings already exist before creating them. If they exist, it backs up the existing configurations to `/tmp` and then updates them.
 
-- The script first checks if the specified ClusterRole (`CLUSTER_ROLE_NAME`) already exists. If it does, it creates a backup of the existing ClusterRole in `/tmp` and deletes it.
-
-- It then applies the new ClusterRole from the current directory.
-
-- After updating the ClusterRole, the script checks if the specified ClusterRoleBinding (`CLUSTER_ROLE_BINDING_NAME`) already exists. If it does, it creates a backup of the existing ClusterRoleBinding in `/tmp` and deletes it.
-
-- Finally, it applies the new ClusterRoleBinding from the current directory.
-
-- The script provides feedback on whether each step was successful or if any errors occurred.
-
+- Make sure to review and customize the script to match your specific RBAC requirements.
