@@ -27,7 +27,8 @@ for deployment in $deployments; do
   replicas=$(kubectl get deployment $deployment -n $NAMESPACE -o jsonpath='{.spec.replicas}')
 
   # Print the deployment name and number of replicas
-  echo "- $deployment: $replicas"
+  #echo "- $deployment: $replicas"
+  echo "- Deployment name: $deployment, No of replicas: $replicas"
 
   # Check if the deployment is kyverno or kyverno-admission-controller and if replicas are less than 3
   if [[ ($deployment == "kyverno" || $deployment == "kyverno-admission-controller") && $replicas -lt 3 ]]; then
