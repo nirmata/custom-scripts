@@ -12,6 +12,58 @@ urlencode() {
     done
 }
 
+
+getkyvernoreplicas() {
+
+# Define the namespace
+NAMESPACE="$1"
+
+# Get the list of deployments in the specified namespace
+deployments=$(kubectl get deployments -n $NAMESPACE -o jsonpath='{.items[*].metadata.name}')
+
+# Loop through each deployment
+for deployment in $deployments; do
+  # Get the number of replicas for the current deployment
+  replicas=$(kubectl get deployment $deployment -n $NAMESPACE -o jsonpath='{.spec.replicas}')
+
+  # Print the deployment name and number of replicas
+  echo "- $deployment: $replicas"
+
+  # Check if the deployment is kyverno or kyverno-admission-controller and if replicas are less than 3
+  if [[ ($deployment == "kyverno" || $deployment == "kyverno-admission-controller") && $replicas -lt 3 ]]; then
+    echo -e "\t- It is recommended to deploy $deployment in HA Mode with 3 or replicas"
+  fi
+done
+
+}
+
+getkyvernologs(){
+
+# Specify the namespace
+NAMESPACE="$1"
+
+# Get the list of pods in the specified namespace
+pods=$(kubectl get pods -n $NAMESPACE -o jsonpath='{.items[*].metadata.name}')
+
+# Loop through each pod
+for pod in $pods; do
+  # Get the list of containers within the current pod
+  containers=$(kubectl get pod $pod -n $NAMESPACE -o jsonpath='{.spec.containers[*].name}')
+
+  # Loop through each container
+  for container in $containers; do
+    # Define the log file name
+    log_file="kyverno/logs/${pod}-${container}.log"
+
+    # Capture the logs and save them to the log file
+    kubectl logs $pod -c $container -n $NAMESPACE > $log_file
+  done
+done
+
+
+
+}
+
 etcdmessage() {
 
 if [[ $? != 0 ]]; then
@@ -24,7 +76,7 @@ report() {
 
 k8s_version=$(kubectl get nodes --no-headers | awk '{print $5}' | uniq)
 k8s_version_tmp=$(kubectl get nodes --no-headers | awk '{print $5}' | uniq | sed 's/v//g')
-ky_deploy=$(kubectl get pods -n kyverno --no-headers | grep -v cleanup | wc -l)
+ky_deploy=$(kubectl get pods -n $KYVERNO_NAMESPACE --no-headers | grep -v cleanup | wc -l)
 
 
 echo
@@ -36,7 +88,7 @@ echo "Kubernetes Version: $k8s_version"
 echo
 echo "Kyverno Deployment Version"
 #echo "--------------------------"
-for i in $(kubectl get deploy -n kyverno -o yaml | grep "image: " | awk -F/ '{ print $NF}')
+for i in $(kubectl get deploy -n $KYVERNO_NAMESPACE -o yaml | grep "image: " | awk -F/ '{ print $NF}' | grep -v "pre")
 do
         echo " - $i"
 done
@@ -121,14 +173,10 @@ do
 done
 
 #echo
-no_of_kyreplicas=$(kubectl get pods -n kyverno  --no-headers | egrep -v 'background-controller|cleanup-controller|reports-controller' | wc -l)
+no_of_kyreplicas=$(kubectl get pods -n $KYVERNO_NAMESPACE  --no-headers | egrep -v 'background-controller|cleanup-controller|reports-controller' | wc -l)
 echo
 echo "Kyverno Replicas:"
-if [[ $no_of_kyreplicas -lt 3 ]]; then
-        echo " - $no_of_kyreplicas replica of Kyverno found. It is recommended to deploy kyverno in HA Mode with 3 replicas"
-else
-        echo " - $no_of_kyreplicas replicas of Kyverno found"
-fi
+getkyvernoreplicas $KYVERNO_NAMESPACE
 #echo "------------------------"
 #echo "Kyverno Deployment Customization: ==============="
 #echo "Kyverno Resource manifests ========================"
@@ -138,7 +186,7 @@ fi
 echo
 echo "Kyverno Pod status:"
 #echo "-------------------"
-kubectl get pods -n kyverno
+kubectl get pods -n $KYVERNO_NAMESPACE
 echo
 echo "Kyverno CRD's:"
 for u in $(kubectl get crd | egrep 'ky|wgp' | awk '{ print $1}')
@@ -160,23 +208,23 @@ do
 done
 echo
 echo "Pod Disruption Budget Deployed:"
-pdb_count=$(kubectl get pdb -n kyverno 2> /dev/null | wc -l)
+pdb_count=$(kubectl get pdb -n $KYVERNO_NAMESPACE 2> /dev/null | wc -l)
 if [[ $pdb_count = 0 ]]; then
         echo "- No matching pdb found for Kyverno. It is recommended to deploy a pdb with minimum replica of 1"
 else
         echo
-        kubectl get pdb -n kyverno
+        kubectl get pdb -n $KYVERNO_NAMESPACE
 fi
 echo
 echo "System Namespaces excluded in webhook"
-for r in $(kubectl get cm -n kyverno kyverno -o yaml | grep webhooks: | awk -F ":" '{ print $NF}' | tr -d "[]}'" | tr "," "\n")
+for r in $(kubectl get cm -n $KYVERNO_NAMESPACE kyverno -o yaml | grep webhooks: | awk -F ":" '{ print $NF}' | tr -d "[]}'" | tr "," "\n")
 do
         echo "- $r"
 done
 echo
 
 #echo "-------------------------"
-#echo "`kubectl get cm kyverno -oyaml -n kyverno  | grep resourceFilters`"
+#echo "`kubectl get cm kyverno -oyaml -n $KYVERNO_NAMESPACE  | grep resourceFilters`"
 #echo "-------------------------------------------"
 echo "Memory and CPU consumption of Kyverno pods:"
 #echo "-------------------------------------------"
@@ -184,40 +232,42 @@ metrics_count=$(kubectl get deploy metrics-server -n kube-system --no-headers 2>
 if [[ $metrics_count = 0 ]]; then
         echo " - Metrics server not installed. Cannot pull the memory and CPU consumption of Kyverno Pods"
 else
-kubectl top pods -n kyverno
+kubectl top pods -n $KYVERNO_NAMESPACE
 fi
 echo
 echo "Collecting the manifests for cluster policies,Kyverno deployments and ConfigMaps"
 mkdir -p kyverno/{manifests,logs}
 
-kubectl get deploy,svc,cm -n kyverno -o yaml > kyverno/manifests/kyverno.yaml 2> /dev/null
+kubectl get deploy,svc,cm -n $KYVERNO_NAMESPACE -o yaml > kyverno/manifests/kyverno.yaml 2> /dev/null
 kubectl get validatingwebhookconfigurations kyverno-policy-validating-webhook-cfg kyverno-resource-validating-webhook-cfg -o yaml > kyverno/manifests/validatingwebhooks.yaml 2> /dev/null
 kubectl get mutatingwebhookconfigurations kyverno-policy-mutating-webhook-cfg kyverno-resource-mutating-webhook-cfg kyverno-verify-mutating-webhook-cfg -o yaml > kyverno/manifests/mutatingwebhooks.yaml 2> /dev/null
 kubectl get cpol -o yaml > kyverno/manifests/cpols.yaml 2> /dev/null
 kubectl get policyreport -A -o yaml > kyverno/manifests/policyreportyaml.yaml 2> /dev/null
 #kubectl get policyreport -A kyverno/manifests/policyreport.yaml 2> /dev/null
-#kubectl get crd -n kyverno -o yaml kyverno/manifests/crd.yaml 2> /dev/null
+#kubectl get crd -n $KYVERNO_NAMESPACE -o yaml kyverno/manifests/crd.yaml 2> /dev/null
 kubectl get crd | egrep 'kyverno|wgp' > kyverno/manifests/crd.yaml 2> /dev/null
 
 echo " - Manifests are collected in \"kyverno/manifests\" folder"
 echo
 echo "Collecting the logs for all the Kyverno pods"
 
-for ipod in $(kubectl get pods -n kyverno --no-headers | egrep -v 'background-controller|cleanup-controller|reports-controller'| awk '{ print $1}'); do kubectl logs $ipod -c kyverno -n kyverno > kyverno/logs/$ipod.log;done
-echo " - Logs are collected in \"kyverno/logs\" folder"
+getkyvernologs "$KYVERNO_NAMESPACE"
+
+echo " - Logs are collected in \"kyverno/logs\" folder. The log file format is <pod-name>-<container-name>.log"
 
 echo
 echo "Verifying Kyverno Metrics"
-if kubectl get svc kyverno-svc-metrics -n kyverno >/dev/null 2>&1; then
-        #metrics_port=$(kubectl get svc kyverno-svc-metrics -n kyverno --no-headers | awk '{ print $5}')
+if kubectl get svc kyverno-svc-metrics -n $KYVERNO_NAMESPACE >/dev/null 2>&1; then
+        #metrics_port=$(kubectl get svc kyverno-svc-metrics -n $KYVERNO_NAMESPACE --no-headers | awk '{ print $5}')
         echo "- Kyverno Metrics are exposed on this cluster"
         echo
-        kubectl get svc kyverno-svc-metrics -n kyverno
+        kubectl get svc kyverno-svc-metrics -n $KYVERNO_NAMESPACE
 else
         echo "- Kyverno Metrics are not exposed. It is recommended to expose Kyverno metrics!"
 fi
 echo
-count=$(kubectl get cpol 2> /dev/null| awk '{ print $1,$4}' | egrep -v 'true|NAME ACTION' | awk '{ print $1 }' | wc -l)
+#count=$(kubectl get cpol 2> /dev/null| awk '{ print $1,$4}' | egrep -v 'true|NAME ACTION' | awk '{ print $1 }' | wc -l)
+count=$(kubectl get cpol -o jsonpath='{range .items[*]}{.status.ready}{"\n"}{end}' | grep false | wc -l)
 echo "No of Policies in \"Not Ready\" State: $count"
 echo
 
@@ -281,21 +331,22 @@ fi
 ## main
 
 #Check the operating system
-if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
-  echo -e "\nScript cannot be run on a Windows machine. Exiting...\n"
-  exit 1
-fi
+#if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
+#  echo -e "\nScript cannot be run on a Windows machine. Exiting...\n"
+#  exit 1
+#fi
 
 
-if [[ $# != 2 ]]; then
-        echo -e "\nUsage: $0 <Servicemonitor name for Kyverno> <Prometheus EP (IP:PORT)>"
-        echo -e "\nExample: $0 service-monitor-kyverno-service 10.14.1.73:9090"
+if [[ $# != 3 ]]; then
+        echo -e "\nUsage: $0 <Servicemonitor name for Kyverno> <Prometheus EP (IP:PORT)> <KYVERNO-NAMESPACE>>"
+        echo -e "\nExample: $0 service-monitor-kyverno-service 10.14.1.73:9090 kyverno"
         echo -e "\nNote: Please refer to the README if you are not sure where to find the Prometheus EP\n"
         exit 1
 fi
 
 KYSVCMONITOR=$1
 prom_url=$2
+KYVERNO_NAMESPACE=$3
 
 mkdir temp 2> /dev/null
 cd temp
