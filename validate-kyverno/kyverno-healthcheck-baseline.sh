@@ -332,10 +332,10 @@ fi
 ## main
 
 #Check the operating system
-#if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
-#  echo -e "\nScript cannot be run on a Windows machine. Exiting...\n"
-#  exit 1
-#fi
+if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
+  echo -e "\nScript cannot be run on a Windows machine. Exiting...\n"
+  exit 1
+fi
 
 
 if [[ $# != 3 ]]; then
