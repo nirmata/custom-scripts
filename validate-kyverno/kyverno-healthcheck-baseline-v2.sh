@@ -122,7 +122,8 @@ echo "Cloud Provider/Infrastructure: $cloudprovider"
 #echo "---------------------------"
 echo
 echo "Total size of the etcd database file physically allocated in bytes:"
-kubectl get --raw /metrics 2> /dev/null | grep "etcd_db_total_size_in_bytes" | grep -v "^#"
+#kubectl get --raw /metrics 2> /dev/null | grep "etcd_db_total_size_in_bytes" | grep -v "^#"
+kubectl get --raw /metrics 2> /dev/null | grep "apiserver_storage_db_total_size_in_bytes" | grep -v "^#"
 etcdmessage
 echo
 echo "Top objects in etcd:"
@@ -217,7 +218,7 @@ fi
 echo
 echo "System Namespaces excluded in webhook"
 
-for r in $(kubectl get configmap kyverno -n kyverno -o jsonpath='{.data.webhooks}' | jq -r '.[].namespaceSelector.matchExpressions[].values[]')
+for r in $(kubectl get configmap kyverno -n $KYVERNO_NAMESPACE -o jsonpath='{.data.webhooks}' | jq -r '.[].namespaceSelector.matchExpressions[].values[]')
 do
         echo "- $r"
 done
