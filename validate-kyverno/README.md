@@ -22,7 +22,7 @@ Example:
 $ kubectl get svc -A | grep prometheus-kube-prometheus-prometheus | awk '{ print $3,$4,$6 }'
 NodePort 172.20.10.35 9090:30098/TCP
 
-$ ./kyverno-healthcheck-baseline-v3.sh service-monitor-kyverno-service <NodeIP:30098> kyverno
+$ ./kyverno-healthcheck-baseline-v3.sh service-monitor-kyverno-service 172.20.10.35:30098 kyverno
 ```
 
 
