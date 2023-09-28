@@ -7,16 +7,16 @@
     - jq installed. 
     - Promtheus installed with servicemonitor for Kyverno created. 
     - Servicemonitor name created for Kyverno
-    - Promtheus EP (IP:PORT)
+    - Promtheus svc (IP:PORT)
     - Metrics server should be installed on the cluster
 
-__How to get the Prometheus EP__: <br />
-In a typical installation, the Prometheus EP can be found by running `kubectl get svc -A | grep monitoring-kube-prometheus-prometheus | awk '{ print $3,$4,$6}'`. The EP name maybe different in your environment so use the command accordingly. 
+__How to get the Prometheus Service__: <br />
+In a typical installation, the Prometheus SVC can be found by running `kubectl get svc -A | grep monitoring-kube-prometheus-prometheus | awk '{ print $3,$4,$6}'`. The SVC name maybe different in your environment so use the command accordingly. 
 Please ensure that you can reach Prometheus from the system where you are executing the script
 
 #### Usage: 
 ```
-$./kyverno-healthcheck-baseline-v3.sh <service-monitor-for-kyverno> <Prometheus EP (IP:PORT)> <KYVERNO_NAMESPACE>
+$./kyverno-healthcheck-baseline-v3.sh <service-monitor-for-kyverno> <Prometheus SVC (IP:PORT)> <KYVERNO_NAMESPACE>
 
 Example:
 
