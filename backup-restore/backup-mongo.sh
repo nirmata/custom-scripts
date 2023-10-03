@@ -111,7 +111,7 @@ do
                 echo
                 kubectl -n nirmata exec $MONGO_MASTER -c mongodb -- sh -c "mongo --quiet < /tmp/commands_${nsvc}.js" | grep -v "switched to db ${nsvc}" > $file1
                 kubectl -n nirmata exec $MONGO_MASTER -c mongodb -- sh -c "mongo --quiet < /tmp/dbVersion_${nsvc}.js" | grep -v "switched to db ${nsvc}" > $file3
-                kubectl -n nirmata exec $MONGO_MASTER -c mongodb -- sh -c "mongorestore --drop --gzip --archive=$NIRMATA_POD_BACKUP_FOLDER/$nsvc.gz --nsFrom"${nsvc}.*" --nsTo "${nsvc}-test.*" --noIndexRestore --nsInclude "${nsvc}.*""
+                kubectl -n nirmata exec $MONGO_MASTER -c mongodb -- sh -c "mongorestore --drop --gzip --archive=$NIRMATA_POD_BACKUP_FOLDER/$nsvc.gz --nsFrom "${nsvc}.*" --nsTo "${nsvc}-test.*" --noIndexRestore --nsInclude "${nsvc}.*""
 
                 showcollectionscount ${nsvc}-test
                 kubectl -n nirmata cp commands_${nsvc}-test.js $MONGO_MASTER:/tmp/
