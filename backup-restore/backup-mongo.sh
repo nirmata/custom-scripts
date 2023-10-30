@@ -2,6 +2,7 @@
 
 #set -x
 
+
 showcollectionscount() {
 
 #unix_timestamp=$(($(date +%s%N)/1000000))
@@ -54,8 +55,8 @@ done
 
 MONGO_MASTER=$mongo_master
 
-#NIRMATA_SERVICES="Activity-nirmata Availability-cluster-hc-nirmata Availability-env-app-nirmata Catalog-nirmata Cluster-nirmata Config-nirmata Environments-                                                                                nirmata Users-nirmata"
-NIRMATA_SERVICES="Activity-nirmata"
+NIRMATA_SERVICES="Activity-nirmata Availability-cluster-hc-nirmata Availability-config-env-nirmata Availability-env-app-nirmata Catalog-nirmata Cluster-nirmata Config-nirmata Environments-nirmata Users-nirmata"
+# NIRMATA_SERVICES="Activity-nirmata"
 
 NIRMATA_HOST_BACKUP_FOLDER=/tmp/backup-nirmata
 NIRMATA_POD_BACKUP_FOLDER=/tmp/nirmata-backups
@@ -78,14 +79,14 @@ for nsvc in $NIRMATA_SERVICES
 do
         echo
         echo "-------------------------------------------------------"
-        echo "Backing up $nsvc db using mongodump                                              "
+        echo "Backing up $nsvc db using mongodump"
         echo "-------------------------------------------------------"
         echo
         kubectl -n nirmata exec $MONGO_MASTER -c mongodb -- touch $NIRMATA_POD_BACKUP_FOLDER/logs/${nsvc}_backup.log
         sleep 2
-        kubectl -n nirmata exec $MONGO_MASTER -c mongodb -- sh -c "mongodump --gzip --db=$nsvc --archive=$NIRMATA_POD_BACKUP_FOLDER/$nsvc.gz 2>&1 | tee -a $N                                                                                IRMATA_POD_BACKUP_FOLDER/logs/${nsvc}_backup.log"
+        kubectl -n nirmata exec $MONGO_MASTER -c mongodb -- sh -c "mongodump --gzip --db=$nsvc --archive=$NIRMATA_POD_BACKUP_FOLDER/$nsvc.gz 2>&1 | tee -a $NIRMATA_POD_BACKUP_FOLDER/logs/${nsvc}_backup.log"
         if [[ $? != 0 ]]; then
-                kubectl -n nirmata exec $MONGO_MASTER -c mongodb -- sh -c "echo \"Could not backup $nsvc database on $(date)\" | tee -a $NIRMATA_POD_BACKUP_F                                                                                OLDER/logs/backup-status.log"
+                kubectl -n nirmata exec $MONGO_MASTER -c mongodb -- sh -c "echo \"Could not backup $nsvc database on $(date)\" | tee -a $NIRMATA_POD_BACKUP_FOLDER/logs/backup-status.log"
         else
                 echo
                 file1=""
@@ -109,13 +110,13 @@ do
                 echo "Displaying collection count for ${nsvc} database                         "
                 echo "-------------------------------------------------------------------------"
                 echo
-                kubectl -n nirmata exec $MONGO_MASTER -c mongodb -- sh -c "mongo --quiet < /tmp/commands_${nsvc}.js" | grep -v "switched to db ${nsvc}" > $fi                                                                                le1
-                kubectl -n nirmata exec $MONGO_MASTER -c mongodb -- sh -c "mongo --quiet < /tmp/dbVersion_${nsvc}.js" | grep -v "switched to db ${nsvc}" > $f                                                                                ile3
-                kubectl -n nirmata exec $MONGO_MASTER -c mongodb -- sh -c "mongorestore --drop --gzip --archive=$NIRMATA_POD_BACKUP_FOLDER/$nsvc.gz --nsFrom                                                                                 "${nsvc}.*" --nsTo "${nsvc}-test.*" --noIndexRestore --nsInclude "${nsvc}.*""
+                kubectl -n nirmata exec $MONGO_MASTER -c mongodb -- sh -c "mongo --quiet < /tmp/commands_${nsvc}.js" | grep -v "switched to db ${nsvc}" > $file1
+                kubectl -n nirmata exec $MONGO_MASTER -c mongodb -- sh -c "mongo --quiet < /tmp/dbVersion_${nsvc}.js" | grep -v "switched to db ${nsvc}" > $file3
+                kubectl -n nirmata exec $MONGO_MASTER -c mongodb -- sh -c "mongorestore --drop --gzip --archive=$NIRMATA_POD_BACKUP_FOLDER/$nsvc.gz --nsFrom "${nsvc}.*" --nsTo "${nsvc}-test.*" --noIndexRestore --nsInclude "${nsvc}.*""
 
                 showcollectionscount ${nsvc}-test
                 kubectl -n nirmata cp commands_${nsvc}-test.js $MONGO_MASTER:/tmp/
-                kubectl -n nirmata exec $MONGO_MASTER -c mongodb -- sh -c "mongo --quiet < /tmp/commands_${nsvc}-test.js" | grep -v "switched to db ${nsvc}-t                                                                                est" > $file2
+                kubectl -n nirmata exec $MONGO_MASTER -c mongodb -- sh -c "mongo --quiet < /tmp/commands_${nsvc}-test.js" | grep -v "switched to db ${nsvc}-test" > $file2
                 #echo
                 #echo "-------------------------------------------------------------------------"
                 #echo "Displaying collection count for ${nsvc}-test database                    "
@@ -125,7 +126,7 @@ do
 
                 getdb_version ${nsvc}-test
                 kubectl -n nirmata cp dbVersion_${nsvc}-test.js $MONGO_MASTER:/tmp/ -c mongodb
-                kubectl -n nirmata exec $MONGO_MASTER -c mongodb -- sh -c "mongo --quiet < /tmp/dbVersion_${nsvc}-test.js" | grep -v "switched to db ${nsvc}-                                                                                test" > $file4
+                kubectl -n nirmata exec $MONGO_MASTER -c mongodb -- sh -c "mongo --quiet < /tmp/dbVersion_${nsvc}-test.js" | grep -v "switched to db ${nsvc}-test" > $file4
 
                 drop_db ${nsvc}-test
                 kubectl -n nirmata cp dropdb_${nsvc}-test.js $MONGO_MASTER:/tmp/ -c mongodb
@@ -136,7 +137,7 @@ do
 
                 # check if there's any output from the diff command
                 if [ -n "$diff_output" ]; then
-                        echo "There is a difference between the files. The backup file could be corrupted as the file count between the ${nsvc} and the ${nsv                                                                                c}-test databases does not match before and after " >> $BACKUP_DIR/dbvrsn_objcnt.log
+                        echo "There is a difference between the files. The backup file could be corrupted as the file count between the ${nsvc} and the ${nsvc}-test databases does not match before and after " >> $BACKUP_DIR/dbvrsn_objcnt.log
                 fi
 
                 diff_output2="$(diff --brief "$file3" "$file4")"
@@ -155,4 +156,10 @@ kubectl -n nirmata exec $MONGO_MASTER -c mongodb -- sh -c "cd /tmp; tar cvf nirm
 
 kubectl -n nirmata cp $MONGO_MASTER:/tmp/nirmata-backups.tar -c mongodb $BACKUP_DIR/nirmata-backups.tar
 
+tar -xvf $BACKUP_DIR/nirmata-backups.tar -C $BACKUP_DIR
+
+echo "nirmata-backups.tar extracted to: $BACKUP_DIR/nirmata-backups at $(date)" > nirmata_backup_directory_path_details.txt
+
 kubectl -n nirmata cp $MONGO_MASTER:$NIRMATA_POD_BACKUP_FOLDER/logs/backup-status.log -c mongodb $BACKUP_DIR/backup-status.log
+
+mv *.js /tmp
