@@ -41,7 +41,7 @@ Follow these steps to generate Kyverno policy YAML files using the script:
 For instance, if you want to generate a policy file named `vktest.yaml` based on data in the `nonprod_script.txt` file, excluding pods with the `restricted-v2` security context constraint and including pods with the `nonroot-anyuid` security context constraint, you can use the following command:
 
 ```bash
-./script.sh nonprod_script.txt vktest restricted-v2 nonroot-anyuid
+./script.sh nonprod_script.txt vktest myrule restricted-v2 nonroot-anyuid
 ```
 
 This command will generate the policy and save it as `vktest.yaml`.
