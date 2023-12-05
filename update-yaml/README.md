@@ -14,7 +14,7 @@ Before using this script, ensure the following prerequisites are met:
 
 USAGE
 
-./script.sh <yaml_file> <new_image> <pod_name>
+    ./script.sh <yaml_file> <new_image> <pod_name>
 
 Where
     <yaml_file>: Path to the YAML file that needs to be updated.
