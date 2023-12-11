@@ -1,0 +1,4 @@
+environment-name,environment-type,cluster-name,nirmata-url
+sagartest1,medium,calico-ipip4,nirmata.io
+sagartest2,medium,calico-ipip4,nirmata.io
+sagartest3,medium,calico-ipip4,nirmata.io
