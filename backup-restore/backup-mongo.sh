@@ -55,7 +55,7 @@ done
 
 MONGO_MASTER=$mongo_master
 
-NIRMATA_SERVICES="Activity-nirmata Availability-cluster-hc-nirmata Availability-config-env-nirmata Availability-env-app-nirmata Catalog-nirmata Cluster-nirmata Config-nirmata Environments-nirmata Users-nirmata"
+NIRMATA_SERVICES="Activity-nirmata Availability-cluster-hc-nirmata Availability-config-env-nirmata Availability-env-app-nirmata Catalog-nirmata Cluster-nirmata Config-nirmata Environments-nirmata Users-nirmata TimeSeries-nirmata"
 # NIRMATA_SERVICES="Activity-nirmata"
 
 NIRMATA_HOST_BACKUP_FOLDER=/tmp/backup-nirmata
