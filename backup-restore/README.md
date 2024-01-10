@@ -8,7 +8,7 @@ This folder contains two essential scripts to help manage MongoDB backups effici
    
 2. **restore.sh**: Utilizes `mongorestore` to restore all MongoDB databases. The script requires one argument: the path where all the dump files are stored.
 
-3. **backup-restore.sh**: Streamlines the entire backup-restore workflow by automating processes, including scaling down replicas, capturing backups, utilizing backups for restoration, and subsequently scaling up all resources.
+3. **automate-restore.sh**: Streamlines the entire backup-restore workflow by automating processes, including scaling down replicas, capturing backups, utilizing backups for restoration, and subsequently scaling up all resources.
 
 ## Usage
 
@@ -28,5 +28,5 @@ Note : For the above points, we need to scale down the replicas in nirmata names
 ## Backup-Restore Automated Script.
 Automate script execution and streamline resource scaling using : 
 ```sh
-./backup-restore.sh
+./automate-restore.sh
 ```
