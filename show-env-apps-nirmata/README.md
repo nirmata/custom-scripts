@@ -24,6 +24,7 @@ The script will iterate through all connected clusters and check for application
 Here's an example of how to use the script:
 
 ```bash
+curl -O https://raw.githubusercontent.com/nirmata/custom-scripts/nova/show-env-apps-nirmata/env_app.sh && chmod +x env_app.sh
 ./env_app.sh ye83h-e7dj-u373-id8f-83rbbgb mongodb-0
 ```
 The script will create a csv file called 'output.csv' as well as a txt file called 'result.txt' with all the environments and applications under each environment. 
