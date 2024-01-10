@@ -14,6 +14,7 @@ Before using this script, ensure that you have the following values:
 To use the script, run the following command:
 
 ```bash
+curl -O https://raw.githubusercontent.com/nirmata/custom-scripts/nova/show-env-apps-nirmata/env_app.sh && chmod +x env_app.sh
 ./env_app.sh <TenantID> <MongoPod>
 ```
 The script will iterate through all connected clusters and check for applications in environments.
