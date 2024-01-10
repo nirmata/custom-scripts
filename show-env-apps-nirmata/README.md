@@ -1,4 +1,4 @@
-# Nirmata Access Control Bash Script
+# Nirmata Applications List in Environments Script
 
 This Bash script creates a csv file which lists the applications found in each environment. 
 
