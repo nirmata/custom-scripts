@@ -8,8 +8,8 @@ mongo_master=$2
 
 # First, we get the clusters
 #Managed only has been commented out
-#kubectl -n devtest5 exec $mongo_master -it -- mongo Cluster-devtest5 --quiet --eval "db.KubernetesCluster.find({'tenantId':'${tenant}','mode':'managed'},{'_id':1,'name':1})" > cluster.txt
-kubectl -n devtest5 exec $mongo_master -it -- mongo Cluster-devtest5 --quiet --eval "db.KubernetesCluster.find({'tenantId':'${tenant}'},{'_id':1,'name':1})" > cluster.txt
+#kubectl -n nirmata exec $mongo_master -it -- mongo Cluster-nirmata --quiet --eval "db.KubernetesCluster.find({'tenantId':'${tenant}','mode':'managed'},{'_id':1,'name':1})" > cluster.txt
+kubectl -n nirmata exec $mongo_master -it -- mongo Cluster-nirmata --quiet --eval "db.KubernetesCluster.find({'tenantId':'${tenant}'},{'_id':1,'name':1})" > cluster.txt
 
 #now extract only the cluster_id
 grep -E '"_id" : "([^"]+)"\s*,\s*"name" : "([^"]+)"' cluster.txt | sed -E 's/.*"_id" : "([^"]+)"\s*,\s*"name" : "([^"]+)".*/\1 \2/' > cluster_data.txt
@@ -22,7 +22,7 @@ done < cluster_id_only.txt
 
 #get the cluster id from environments db
 for cluster_id in "${clusters[@]}"; do
-     kubectl -n devtest5 exec -it $mongo_master -- mongo Environments-devtest5 --quiet --eval "db.Cluster.find({'clusterRef.id':'$cluster_id'},{'_id':1,'name':1})"
+     kubectl -n nirmata exec -it $mongo_master -- mongo Environments-nirmata --quiet --eval "db.Cluster.find({'clusterRef.id':'$cluster_id'},{'_id':1,'name':1})"
 done > env.txt
 
 #get ids
@@ -36,7 +36,7 @@ done < env_id_only.txt
 
 #get all the applications and environments
 for env_id in "${env[@]}"; do
-    kubectl -n devtest5 exec -it $mongo_master -- mongo Environments-devtest5 --quiet --eval "db.Environment.find({'cluster.id':'$env_id'}).forEach(function(env) {var envName = env.name; db.Application.find({'parent.id':env._id}).forEach(function(app) {print('Application ' +app.name+' in environment '+envName); })})"
+    kubectl -n nirmata exec -it $mongo_master -- mongo Environments-nirmata --quiet --eval "db.Environment.find({'cluster.id':'$env_id'}).forEach(function(env) {var envName = env.name; db.Application.find({'parent.id':env._id}).forEach(function(app) {print('Application ' +app.name+' in environment '+envName); })})"
 done > app_env.txt
 
 grep -oP 'Application \K\S+ in environment \K\S+' app_env.txt | awk '{count[$2][$1]++} END {for (env in count) {print "Count of all Applications in each environment:", env; for (app in count[env]) print app, " :: Applications Count:", count[env][app]; print ""}}' > count.txt
