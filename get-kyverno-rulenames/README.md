@@ -5,7 +5,8 @@ This script retrieves and lists all rule names defined within Kyverno cluster po
 - kubectl: kubectl CLI: https://kubernetes.io/docs/reference/kubectl/
 - jq: jq (JSON processor): https://stedolan.github.io/jq/
 ## Usage
-Clone this repository or download the script directly.
-Make the script executable: chmod +x list_kyverno_rules.sh
-Run the script: ./list_kyverno_rules.sh
+1. Clone this repository or download the script directly.
+2. Make the script executable: chmod +x list_kyverno_rules.sh
+3. Run the script: ./list_kyverno_rules.sh
+
 The script will list all Kyverno rule names from your cluster policies
