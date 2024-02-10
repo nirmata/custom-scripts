@@ -9,7 +9,8 @@ This script retrieves and lists all rule names defined within Kyverno cluster po
 2. Make the script executable: chmod +x list_kyverno_rules.sh
 3. Run the script: ./list_kyverno_rules.sh
 
-``` $ ./list_kyverno_rules.sh
+``` 
+$ ./list_kyverno_rules.sh
 require-drop-cap-net_raw
 require-drop-cap-net_bind_service
 require-drop-cap-setuid
