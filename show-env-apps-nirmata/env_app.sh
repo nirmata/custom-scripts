@@ -40,8 +40,6 @@ for env_id in "${env[@]}"; do
 done > app_env.txt
 
 grep -oP 'Application \K\S+ in environment \K\S+' app_env.txt | awk '{count[$2][$1]++} END {for (env in count) {print "Count of all Applications in each environment:", env; for (app in count[env]) print app, " :: Applications Count:", count[env][app]; print ""}}' > count.txt
-column -t -s '::' count.txt | tee count.txt
-
 
 #presenting all apps under an environment
 input_file="app_env.txt"
@@ -71,54 +69,37 @@ echo " " >> result.txt
 echo "********************************************" >> result.txt
 echo " " >> result.txt
 cat apps.txt >> result.txt
-#Deleting unwanted files created
-rm cluster_id_only.txt 
-rm cluster_data.txt 
-rm cluster.txt 
-rm env.txt 
-rm env_data.txt 
-rm env_id_only.txt
-rm app_env.txt
 
-#Converting to csv
-# Function to extract application names for a given environment
-extract_applications() {
-  environment="$1"
-  awk -v env="$environment" '/^Environment/{flag=0} flag{print $2} $0 ~ env{flag=1}' apps.txt | grep -v '^$' | paste -sd, -
-}
-
-# Read input from count.txt
-input_text=$(tail -n +2 count.txt)
-
-# Initialize arrays
-environment_names=()
-count_numbers=()
-
-# Read each line of input text
-while IFS= read -r line; do
-  # Extract environment name and count number using awk
-  environment=$(echo "$line" | awk '{print $1}')
-  count=$(echo "$line" | awk '{print $NF}')
-  
-  # Add values to arrays
-  environment_names+=("$environment")
-  count_numbers+=("$count")
-done <<< "$input_text"
-
-# Output CSV header
+# First, write the header to the output.csv
 echo "Environment,Total Applications Count,Application Names" > output.csv
 
-# Loop through each environment
-for ((i=0; i<${#environment_names[@]}; i++)); do
-  # Extract applications for the current environment
-  applications=$(extract_applications "${environment_names[$i]}")
-  
-  # Output CSV row
-  echo "${environment_names[$i]},${count_numbers[$i]},$applications" >> output.csv
-done
+# Process applications and environments for counts and names
+awk -F ' in environment ' '
+{
+  app_name = $1;
+  gsub(/^Application /, "", app_name);
+  env_name = $2;
+  apps[env_name][app_name]++;
+  envs[env_name]++;
+}
+END {
+  for (env in envs) {
+    printf("%s,%d,", env, envs[env]);
+    first = 1;
+    for (app in apps[env]) {
+      if (!first) printf(";");
+      first = 0;
+      printf("%s", app);
+    }
+    print "";
+  }
+}' app_env.txt >> output.csv
 
-echo "CSV file 'output.csv' has been created."
-rm apps.txt
-rm count.txt
+echo ""
+echo "********************************************"
+echo ""
+echo "CSV file 'output.csv' has been created with environment, total applications count, and application names."
+echo "We have also provided the same in txt format using results.txt file"
 
-#output.csv and result.txt will contain the required applications
+# Cleanup
+rm cluster_id_only.txt cluster_data.txt cluster.txt env.txt env_data.txt env_id_only.txt app_env.txt count.txt apps.txt
