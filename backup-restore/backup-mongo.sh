@@ -46,12 +46,22 @@ mongos="mongodb-0 mongodb-1 mongodb-2"
 
 for mongo in $mongos
 do
-    cur_mongo=$(kubectl -n nirmata exec $mongo -c mongodb -- sh -c 'echo "db.serverStatus()" |mongo' 2>&1|grep  '"ismaster"')
-    if [[  $cur_mongo =~ "true" ]];then
+    # Adjust the command below with authentication details if necessary
+    cur_mongo=$(kubectl -n nirmata exec $mongo -c mongodb -- mongo --quiet --eval "printjson(rs.isMaster())" 2>&1)
+
+    if echo "$cur_mongo" | grep -q '"ismaster" : true'; then
         echo "$mongo is master"
         mongo_master=$mongo
+        break # Assuming you only need one master, exit loop after finding it
     fi
 done
+
+if [ -n "$mongo_master" ]; then
+    echo "The primary MongoDB replica is: $mongo_master"
+else
+    echo "No primary MongoDB replica found."
+    exit 1 # It seems this exit was intended to be here to halt the script if no master is found.
+fi
 
 MONGO_MASTER=$mongo_master
 
