@@ -355,8 +355,7 @@ alias kubectl="kubectl $add_kubectl "
 mongo_test(){
 # mongo testing
 echo "Testing MongoDB Pods"
-# mongo_ns=$(kubectl get pod --all-namespaces -l nirmata.io/service.name=mongodb --no-headers | awk '{print $1}'|head -1)
-mongo_ns=devtest5
+mongo_ns=$(kubectl get pod --all-namespaces -l nirmata.io/service.name=mongodb --no-headers | awk '{print $1}'|head -1)
 mongos=$(kubectl get pod --namespace=$mongo_ns -l nirmata.io/service.name=mongodb --no-headers | awk '{print $1}')
 mongo_num=0
 # The mongo master (or masters ?!!?)
@@ -429,8 +428,7 @@ fi
 zoo_test(){
 zoo_error=0
 echo "Testing Zookeeper pods"
-# zoo_ns=$(kubectl get pod --all-namespaces -l 'nirmata.io/service.name in (zookeeper, zk)' --no-headers | awk '{print $1}'|head -1)
-zoo_ns=devtest5
+zoo_ns=$(kubectl get pod --all-namespaces -l 'nirmata.io/service.name in (zookeeper, zk)' --no-headers | awk '{print $1}'|head -1)
 zoos=$(kubectl get pod -n $zoo_ns -l 'nirmata.io/service.name in (zookeeper, zk)' --no-headers | awk '{print $1}')
 zoo_num=0
 zoo_leader=""
@@ -517,8 +515,7 @@ fi
 # testing kafka pods
 kafka_test(){
 echo "Testing Kafka pods"
-# kafka_ns=$(kubectl get pod --all-namespaces -l nirmata.io/service.name=kafka --no-headers | awk '{print $1}'|head -1)
-kafka_ns=devtest5
+kafka_ns=$(kubectl get pod --all-namespaces -l nirmata.io/service.name=kafka --no-headers | awk '{print $1}'|head -1)
 kafkas=$(kubectl get pod -n $kafka_ns -l nirmata.io/service.name=kafka --no-headers | awk '{print $1}')
 kaf_num=0
 for kafka in $kafkas; do
@@ -1070,5 +1067,3 @@ fi
 echo -e  "\e[32mTesting completed without errors or warning\e[0m"
 do_email
 exit 0
-
-
