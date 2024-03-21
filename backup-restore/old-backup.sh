@@ -27,7 +27,7 @@ NIRMATA_SERVICES="Activity-nirmata Availability-cluster-hc-nirmata Availability-
 
 for nsvc in $NIRMATA_SERVICES
 do
-	kubectl -n nirmata exec $MONGO_MASTER -c mongodb -- sh -c "mkdir /tmp/03212024 && mongodump --gzip --db=$nsvc --archive=/tmp/03212024/$nsvc.gz"
+	kubectl -n nirmata exec $MONGO_MASTER -c mongodb -- sh -c "mkdir -p /tmp/03212024 && mongodump --gzip --db=$nsvc --archive=/tmp/03212024/$nsvc.gz"
         sleep 2
 	kubectl -n nirmata cp $MONGO_MASTER:/tmp/03212024/$nsvc.gz" -c mongodb $BACKUP_DIR/$nsvc.gz
 	if [[ $? = 0 ]]; then
