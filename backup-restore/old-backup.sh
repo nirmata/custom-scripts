@@ -2,7 +2,12 @@
 
 ## main
 
-BACKUP_DIR=$1
+BACKUP_DIR="$1"
+
+if [[ $# != 1 ]]; then
+        echo -e "\nUsage: $0 <backup-folder>\n"
+        exit 1
+fi
 
 # List all mongo pods
 mongos="mongodb-0 mongodb-1 mongodb-2"
