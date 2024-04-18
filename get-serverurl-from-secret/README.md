@@ -1,4 +1,4 @@
-The script used in this repo is used to fetch the serverURL from the imagePullSecret used by the deployment. This will help you to identify if the serverURL in the secret needs to be updated to the new URL. 
+The script used in this repo is used to fetch the serverURL from the imagePullSecret used by the deployment. This will help you to identify if the serverURL in the secret needs to be updated to the new URL. The serverURL is checked against the new serverURL and if an updated is needed, it is added in the `Updated Needed ` column. 
 
 ## Prerequisites
 
