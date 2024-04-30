@@ -54,7 +54,7 @@ fi
 # Should we email by default?
 email=1
 # default sendemail containers Note NOT sendmail!
-sendemail='ssilbory/sendemail'
+sendemail='ghcr.io/nirmata/sendemail'
 alwaysemail=1
 # Set this to fix local issues by default
 fix_issues=1
@@ -358,12 +358,11 @@ alias kubectl="kubectl $add_kubectl "
 mongo_test(){
 # mongo testing
 echo "Testing MongoDB Pods"
-mongo_ns="pov"
+mongo_ns=$(kubectl get pod --all-namespaces -l nirmata.io/service.name=mongodb --no-headers | awk '{print $1}'|head -1)
 mongos=$(kubectl get pod --namespace=$mongo_ns -l nirmata.io/service.name=mongodb --no-headers | awk '{print $1}')
 mongo_num=0
 # The mongo master (or masters ?!!?)
 mongo_master=""
-echo "$mongo_ns"
 # Number of masters (ideally one)
 mongo_masters=0
 mongo_error=0
@@ -387,7 +386,7 @@ for mongo in $mongos; do
             kubectl -n $mongo_ns get pod $mongo --no-headers -o wide
         fi
     fi
-    mongo_df=$(kubectl -n $mongo_ns exec $mongo $mongo_container -- df /data/db | awk '{ print $5; }' |tail -1|sed s/%//)
+    mongo_df=$(kubectl -n $mongo_ns exec $mongo $mongo_container -- df /data/db | awk '{ print $5; }' | tail -1 | sed s/%//)
     [[ $mongo_df -gt $df_free_mongo ]] && (error "Found MongoDB volume at ${mongo_df}% usage on $mongo" ; \
         kubectl -n $mongo_ns exec $mongo $mongo_container -- du --all -h /data/db/ |grep '^[0-9,.]*G' )
     kubectl -n $mongo_ns exec $mongo $mongo_container -- du  -h /data/db/WiredTigerLAS.wt |grep '[0-9]G' && \
@@ -462,7 +461,7 @@ for zoo in $zoos; do
 
     fi
     zoo_num=$((zoo_num + 1));
-    zoo_df=$(kubectl -n $zoo_ns exec $zoo -- df /var/lib/zookeeper | awk '{ print $5; }' |tail -1|sed s/%//)
+    zoo_df=$(kubectl -n $zoo_ns exec $zoo -- df /var/lib/zookeeper | awk '{ print $5; }' | tail -1 | sed s/%//)
     [[ $zoo_df -gt $df_free ]] && error "Found zookeeper volume at ${zoo_df}% usage on $zoo!!"
 done
 
@@ -490,49 +489,69 @@ fi
 
 # testing kafka pods
 kafka_test(){
-echo "Testing Kafka pods"
-kafka_ns=$(kubectl get pod --all-namespaces -l nirmata.io/service.name=kafka --no-headers | awk '{print $1}'|head -1)
-kafkas=$(kubectl get pod -n $kafka_ns -l nirmata.io/service.name=kafka --no-headers | awk '{print $1}')
-kaf_num=0
-kaf_error=0
-for kafka in $kafkas; do
-    echo "Found Kafka Pod $kafka"
-    kafka_df=$(kubectl -n $kafka_ns exec $kafka -- df /var/lib/kafka | awk '{ print $5; }' |tail -1|sed s/%//)
-    [[ $kafka_df -gt $df_free ]] && error "Found Kafka volume at ${kafka_df}% usage on $kafka"
-    kaf_num=$((kaf_num + 1));
-done
-[[ $kaf_num -gt 3 ]] && error "Found $kaf_num Kafka Pods $kafkas!!!" && kaf_error=1
-if [[ $kaf_num -eq 0 ]];then
-    error "Found Zero Kafka Pods!!!"
-    kaf_error=1
-elif [[ $kaf_num -lt 3 ]]; then
-    warn "Found $kaf_num Kafka Pod!"
-    kaf_error=1
-fi
-[[ $kaf_error -eq 0 ]] && good "Kafka passed tests"
+    echo "Testing Kafka pods"
+    kafka_ns=$(kubectl get pod --all-namespaces -l nirmata.io/service.name=kafka --no-headers | awk '{print $1}'|head -1)
+    kafkas=$(kubectl get pod -n $kafka_ns -l nirmata.io/service.name=kafka --no-headers | awk '{print $1}')
+    kaf_num=0
+    kaf_error=0
+    for kafka in $kafkas; do
+        echo "Found Kafka Pod $kafka"
+        kafka_df=$(kubectl -n $kafka_ns exec $kafka -- df /var/lib/kafka | awk '{ print $5; }' | tail -1 | sed s/%//)
+        [[ $kafka_df -gt $df_free ]] && error "Found Kafka volume at ${kafka_df}% usage on $kafka"
+        kaf_num=$((kaf_num + 1));
+    done
+    [[ $kaf_num -gt 3 ]] && error "Found $kaf_num Kafka Pods $kafkas!!!" && kaf_error=1
+    if [[ $kaf_num -eq 0 ]];then
+        error "Found Zero Kafka Pods!!!"
+        kaf_error=1
+    elif [[ $kaf_num -lt 3 ]]; then
+        warn "Found $kaf_num Kafka Pod!"
+        kaf_error=1
+    fi
+    for kafka in $kafkas; do
+        kubectl exec $kafka -n $kafka_ns -- sh -c "nc -z 127.0.0.1 9092 > /dev/null 2>&1"
+        stat=$?
+        if [ $stat -eq 0 ]; then
+            good "$kafka API is healthy!"
+        else
+            error "$kafka API is unhealthy!"
+            kaf_error=1
+        fi
+    done
+    [[ $kaf_error -eq 0 ]] && good "Kafka passed tests"
 }
 
 kafka_controller_test(){
-echo "Testing Kafka controller pods"
-kafka_controller_ns=$kafka_ns
-kafkas_controllers=$(kubectl get pod -n $kafka_controller_ns -l nirmata.io/service.name=kafka-controller --no-headers | awk '{print $1}')
-kaf_cont_num=0
-kaf_cont_error=0
-for kafka_controller in $kafkas_controllers; do
-    echo "Found Kafka Controller Pod $kafka_controller"
-    kafka_controller_df=$(kubectl -n $kafka_controller_ns exec $kafka_controller -- df /var/lib/kafka | awk '{ print $5; }' |tail -1|sed s/%//)
-    [[ $kafka_controller_df -gt $df_free ]] && error "Found Kafka volume at ${kafka_df}% usage on $kafka_controller"
-    kaf_cont_num=$((kaf_cont_num + 1));
-done
-[[ $kaf_cont_num -gt 3 ]] && error "Found $kaf_cont_num Kafka Controller Pods $kafkas_controllers!!!" && kaf_cont_error=1
-if [[ $kaf_cont_num -eq 0 ]];then
-    error "Found Zero Kafka Controller Pods!!!"
-    kaf_cont_error=1
-elif [[ $kaf_cont_num -lt 3 ]]; then
-    warn "Found $kaf_cont_num Kafka Controller Pod!"
-    kaf_cont_error=1
-fi
-[[ $kaf_cont_error -eq 0 ]] && good "Kafka Controller passed tests"
+    echo "Testing Kafka controller pods"
+    kafka_controller_ns=$kafka_ns
+    kafka_controllers=$(kubectl get pod -n $kafka_controller_ns -l nirmata.io/service.name=kafka-controller --no-headers | awk '{print $1}')
+    kaf_cont_num=0
+    kaf_cont_error=0
+    for kafka_controller in $kafka_controllers; do
+        echo "Found Kafka Controller Pod $kafka_controller"
+        kafka_controller_df=$(kubectl -n $kafka_controller_ns exec $kafka_controller -- df /var/lib/kafka | awk '{ print $5; }' | tail -1 | sed s/%//)
+        [[ $kafka_controller_df -gt $df_free ]] && error "Found Kafka volume at ${kafka_df}% usage on $kafka_controller"
+        kaf_cont_num=$((kaf_cont_num + 1));
+    done
+    [[ $kaf_cont_num -gt 3 ]] && error "Found $kaf_cont_num Kafka Controller Pods $kafka_controllers!!!" && kaf_cont_error=1
+    if [[ $kaf_cont_num -eq 0 ]];then
+        error "Found Zero Kafka Controller Pods!!!"
+        kaf_cont_error=1
+    elif [[ $kaf_cont_num -lt 3 ]]; then
+        warn "Found $kaf_cont_num Kafka Controller Pod!"
+        kaf_cont_error=1
+    fi
+    for kafka_controller in $kafka_controllers; do
+        kubectl exec $kafka_controller -n $kafka_controller_ns -- sh -c "nc -z 127.0.0.1 9093 > /dev/null 2>&1"
+        stat=$?
+        if [ $stat -eq 0 ]; then
+            good "$kafka_controller API is healthy!"
+        else
+            error "$kafka_controller API is unhealthy!"
+            kaf_cont_error=1
+        fi
+    done
+    [[ $kaf_cont_error -eq 0 ]] && good "Kafka Controller passed tests"
 }
 
 #function to email results
@@ -546,7 +565,6 @@ if [[ $email -eq 0 ]];then
     [ -z $logfile ] && logfile="/tmp/k8_test.$$"
     [ -z $EMAIL_USER ] && EMAIL_USER="" #would this ever work?
     [ -z $EMAIL_PASSWD ] && EMAIL_PASSWD="" #would this ever work?
-    #[ -z $TO ] && error "No TO address given!!!" && exit 1 # Why did I comment this out?
     [ -z $FROM ] && FROM="k8@nirmata.com" && warn "You provided no From address using $FROM"
     [ -z "$SUBJECT" ] && SUBJECT="K8 test script error" && warn "You provided no Subject using $SUBJECT"
     [ -z $SMTP_SERVER ] && error "No smtp server given!!!" && exit 1
@@ -707,7 +725,7 @@ spec:
     fi
 
     for pod in $(kubectl -n $ns get pods -l app=nirmata-net-test-all-app --no-headers |grep Running |awk '{print $1}');do
-      root_df=$(kubectl -n $ns exec $pod -- df / | awk '{ print $5; }' |tail -1|sed s/%//)
+      root_df=$(kubectl -n $ns exec $pod -- df / | awk '{ print $5; }' | tail -1 | sed s/%//)
       [[ $root_df -gt $df_free_root ]] && ( node=$(kubectl get pod $pod -o=custom-columns=NODE:.spec.nodeName) ;\
         error "Found docker partition ${root_df}% usage on $node" ; )
 
