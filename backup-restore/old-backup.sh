@@ -29,7 +29,7 @@ for nsvc in $NIRMATA_SERVICES
 do
         kubectl -n nirmata exec $MONGO_MASTER -c mongodb -- sh -c "mkdir -p /tmp/05102024 && mongodump --gzip --db=$nsvc --archive=/tmp/05102024/$nsvc.gz"
         sleep 2
-        kubectl -n nirmata cp $MONGO_MASTER:/tmp/05102024/$nsvc.gz" -c mongodb $BACKUP_DIR/$nsvc.gz
+        kubectl -n nirmata cp $MONGO_MASTER:/tmp/05102024/$nsvc.gz -c mongodb $BACKUP_DIR/$nsvc.gz
         if [[ $? = 0 ]]; then
                 kubectl -n nirmata exec $MONGO_MASTER -c mongodb -- sh -c "rm -f /tmp/05102024/$nsvc.gz"
         else
