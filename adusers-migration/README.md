@@ -7,5 +7,10 @@ This folder contains a script to copy permissions from source team to target tea
 
 ## Usage
 ```sh
-nohup bash fix.sh > output.log 2>&1 &
+nohup bash fix-issue.sh > output.log 2>&1 &
+```
+To verify the script output, the log file can be tailed using below command
+
+```sh
+tail -20f output.log
 ```
