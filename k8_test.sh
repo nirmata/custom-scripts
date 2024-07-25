@@ -530,9 +530,15 @@ else
         warn 'Docker does not have its own mountpoint'
         # What is the fix for this???
     else
-        good Docker is active
+        dockerVersion=$(docker --version | awk -F'[, ]+' '{print $3}')
+        if [[ $dockerVersion <  19.03.13 ]] ; then
+            warn 'Upgrade Docker to 19.03.13 or later'
+        else
+            good 'Docker is active'
+        fi
     fi
 fi
+
 if type kubelet &>/dev/null;then
     #test for k8 service
     echo Found kubelet running local kubernetes tests
@@ -558,6 +564,39 @@ if type kubelet &>/dev/null;then
         warn '/opt/cni/bin/bridge not found is your CNI installed?'
     fi
 fi
+
+# tests for containerd
+if ! systemctl is-active containerd &>/dev/null ; then
+    warn 'Containerd service is not active? Maybe you are using some other CRI??'
+else
+    containerdVersion=$(containerd --version | awk '{print $3}')
+    if [[ $containerdVersion < 1.6.19 ]] ;then
+        warn 'Install containerd version 1.6.19 or later'
+    else
+        CONFIG_FILE="/etc/containerd/config.toml"
+        if grep -q 'SystemdCgroup = true' "$CONFIG_FILE"; then
+            good Containerd is active
+        else
+            warn "SystemdCgroup is not set to true in $CONFIG_FILE"
+        fi
+        
+    fi
+fi
+
+# tests for systemd-resolved
+if ! systemctl is-active systemd-resolved &>/dev/null ; then
+    warn 'systemd-resolved is not running!'
+else
+    good systemd-resolved is active
+fi
+
+# tests for firewalld
+if systemctl is-active firewalld &>/dev/null ; then
+    warn 'firewalld is running, please turn it off using `sudo systemctl disable --now firewalld`'
+else
+    good firewalld is inactive
+fi
+
 }
 
 #start main script
