@@ -13,8 +13,6 @@ sudo rm -rf /etc/cni/*
 sudo rm -rf /opt/cni/*
 
 # Clear IP Tables
-sudo iptables --flush
-sudo iptables -tnat --flush
 sudo iptables -P INPUT ACCEPT
 sudo iptables -P FORWARD ACCEPT
 sudo iptables -P OUTPUT ACCEPT
