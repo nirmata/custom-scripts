@@ -36,6 +36,8 @@ sudo ifconfig cni0 down
 sudo brctl delbr cni0
 sudo ifconfig kube-bridge down
 sudo ifconfig flannel.1 down
+sudo ifconfig | grep cali | awk -F ':' '{print $1}' | xargs -t -I % sh -c '{ ifconfig % down;}'
+sudo ip link | grep cali | awk '{print $2}' | awk -F '@' '{print $1}' | xargs -t -I % sh -c '{ ip link delete %;}'
 sudo ifconfig | grep tunl | awk -F ':' '{print $1}' | xargs -t -I % sh -c '{ ifconfig % down;}'
 sudo ifconfig | grep tunl | awk -F ':' '{print $1}' | xargs -t -I % sh -c '{ ip link delete %;}'
 sudo ip link | grep tunl | awk '{print $2}' | awk -F '@' '{print $1}' | xargs -t -I % sh -c '{ ip link delete %;}'
