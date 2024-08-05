@@ -1,5 +1,5 @@
 #!/bin/bash
-# Nirmata cleanup script
+# Nirmata cluster cleanup script
 
 # Stop and remove any running docker containers
 sudo docker stop $(sudo docker ps | grep “flannel” | gawk '{print $1}')
@@ -10,9 +10,9 @@ sudo docker rm  $(sudo docker ps -a | grep "Exit" |gawk '{print $1}')
 
 #Stop and remove any running containerd containers
 
-sudo ctr -n k8s.io task ls | awk '{print $1}' | xargs -t -I % sh -c '{ ctr -n k8s.io task pause %;}'
-sudo ctr -n k8s.io task ls | awk '{print $1}' | xargs -t -I % sh -c '{ ctr -n k8s.io task kill -s SIGKILL %;}'
-sudo ctr -n k8s.io c ls | awk '{print $1}' | xargs -t -I % sh -c '{ ctr -n k8s.io c rm %;}'
+sudo ctr -n k8s.io task ls | awk '{print $1}' | xargs -t -I % sh -c '{ sudo ctr -n k8s.io task pause %;}'
+sudo ctr -n k8s.io task ls | awk '{print $1}' | xargs -t -I % sh -c '{ sudo ctr -n k8s.io task kill -s SIGKILL %;}'
+sudo ctr -n k8s.io c ls | awk '{print $1}' | xargs -t -I % sh -c '{ sudo ctr -n k8s.io c rm %;}'
 
 # Remove any cni plugins
 sudo rm -rf /etc/cni/*
@@ -44,6 +44,8 @@ sudo ifconfig kube-bridge down
 sudo ifconfig flannel.1 down
 sudo ifconfig | grep cali | awk -F ':' '{print $1}' | xargs -t -I % sh -c '{ ifconfig % down;}'
 sudo ip link | grep cali | awk '{print $2}' | awk -F '@' '{print $1}' | xargs -t -I % sh -c '{ ip link delete %;}'
+sudo ifconfig set dev tunl0 down
+sudo ifconfig tunl0 delete
 sudo ifconfig | grep tunl | awk -F ':' '{print $1}' | xargs -t -I % sh -c '{ ifconfig % down;}'
 sudo ifconfig | grep tunl | awk -F ':' '{print $1}' | xargs -t -I % sh -c '{ ip link delete %;}'
 sudo ip link | grep tunl | awk '{print $2}' | awk -F '@' '{print $1}' | xargs -t -I % sh -c '{ ip link delete %;}'
