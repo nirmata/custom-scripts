@@ -2,6 +2,7 @@
 
 run_node_test=1
 run_cluster_test=1
+namespace="nirmata"
 
 #function to print red text
 error(){
@@ -35,6 +36,7 @@ helpfunction(){
     echo '--cluster                   Commence cluster specific checks.'
     echo '--node                      Commence node specific checks.'
     echo "--repository                Repository to check image pull. Ex. ghcr.io"
+    echo "--namespace namespace_name  (Default is \"$namespace\")."
 }
 
 # deal with args
@@ -61,6 +63,12 @@ for i in "$@";do
         -h|--help)
             helpfunction
             exit 0
+        ;;
+        --namespace)
+            script_args=" $script_args $1 $2 "
+            namespace=$2
+            shift
+            shift
         ;;
     esac
 done
