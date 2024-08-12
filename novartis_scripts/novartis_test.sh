@@ -3,6 +3,12 @@
 run_node_test=1
 run_cluster_test=1
 namespace="nirmata"
+fix_issues=1
+
+if [ "$#" -eq 0 ]; then
+  helpfunction
+  exit 0
+fi
 
 #function to print red text
 error(){
@@ -39,6 +45,11 @@ helpfunction(){
     echo "--namespace namespace_name  (Default is \"$namespace\")."
 }
 
+if [ "$#" -eq 0 ]; then
+  helpfunction
+  exit 0
+fi
+
 # deal with args
 for i in "$@";do
     case $i in
@@ -68,6 +79,10 @@ for i in "$@";do
             script_args=" $script_args $1 $2 "
             namespace=$2
             shift
+            shift
+        ;;
+        --fix)
+            fix_issues=0
             shift
         ;;
     esac
@@ -160,7 +175,7 @@ node_test(){
                 echo '  setenforce 0'
                 setenforce 0
             else
-                echo Consider the following changes to disabled SELinux if you are having issues:
+                echo Consider the following changes to disable SELinux if you are having issues:
                 echo '  sed -i s/^SELINUX=.*/SELINUX=permissive/ /etc/selinux/config'
                 echo '  setenforce 0'
             fi
@@ -247,7 +262,7 @@ node_test(){
 
     if type kubelet &>/dev/null;then
         #test for k8 service
-        echo Found kubelet running local kubernetes tests
+        good Found kubelet running local kubernetes tests
         if ! systemctl is-active kubelet &>/dev/null ; then
             error 'Kubelet is not active?'
         else
@@ -372,3 +387,12 @@ fi
 if [[ $run_node_test -eq 0 ]]; then
     node_test
 fi
+
+if [ $error != 0 ];then
+    error "Test completed with errors!"
+    exit $error
+fi
+
+if [ $warn != 0 ];then
+    warn "Test completed with warnings."
+    exit 0
