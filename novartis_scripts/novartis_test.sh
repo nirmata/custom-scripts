@@ -93,15 +93,19 @@ node_test(){
     done
 
     # Test for Node Space Allocation (To be modified)
-    paths=("/var/lib/docker" "/etc/containerd" "/app/nirmata")
+    paths="/var/nirmata"
 
-    for path in "${paths[@]}"; do
-    if df -h | grep -q "$path"; then
-        good "Space allocation for $path:"
-        df -h | grep "$path"
-    else
-        warn "$path is not found."
-    fi
+    for path in $paths; do
+        if df -h | grep -q "$path"; then
+            space_used=$(df -h | grep "$path" | awk '{print $5}' | sed 's/%//')
+            if [ "$space_used" -gt 50 ]; then
+                warn "Space usage for $path is at $space_used%, which exceeds the 50% threshold."
+            else
+                good "Space allocation for $path is at $space_used%, which is within the 50% threshold."
+            fi
+        else
+            warn "$path is not found."
+        fi
     done
 
     # Test for repository access
@@ -134,51 +138,53 @@ cluster_test(){
         warn "Metric server is not installed."
     fi
 
-    # Test for nirmata services
-       dns_error=0
-    for ns in $namespaces;do
-        echo Testing $ns namespace
-    for pod in $(kubectl -n $ns get pods -l app=net-test-all-app --no-headers |grep Running |awk '{print $1}');do
-        echo Testing "$(kubectl -n $ns get pods $pod -o wide --no-headers| awk '{print $7}') Namespace $ns"
-        if  kubectl exec $pod -- nslookup $DNSTARGET 2>&1|grep -e can.t.resolve -e does.not.resolve -e can.t.find -e No.answer;then
-            warn "Can not resolve external DNS name $DNSTARGET on $pod."
-            kubectl -n $ns get pod $pod -o wide
-            kubectl -n $ns exec $pod -- sh -c "nslookup $DNSTARGET"
-            echo
-        else
-            good "DNS test $DNSTARGET on $pod suceeded."
-        fi
-        #kubectl -n $ns exec $pod -- nslookup $SERVICETARGET
-        if kubectl -n $ns exec $pod -- nslookup $SERVICETARGET 2>&1|grep -e can.t.resolve -e does.not.resolve -e can.t.find -e No.answer;then
-            warn "Can not resolve $SERVICETARGET service on $pod"
-            echo 'Debugging info:'
-            kubectl get pod $pod -o wide
-            dns_error=1
-            kubectl -n $ns exec $pod -- nslookup $DNSTARGET
-            kubectl -n $ns exec $pod -- nslookup $SERVICETARGET
-            kubectl -n $ns exec $pod -- cat /etc/resolv.conf
-            error "DNS test failed to find $SERVICETARGET service on $pod"
-        else
-            good "DNS test $SERVICETARGET on $pod suceeded."
-        fi
-        if [[ $curl -eq 0 ]];then
-             if [[ $http -eq 0 ]];then
-                 if  kubectl -n $ns exec $pod -- sh -c "if curl --max-time 5 http://$SERVICETARGET; then exit 0; else exit 1; fi" 2>&1|grep -e 'command terminated with exit code 1';then
-                     error "http://$SERVICETARGET failed to respond to curl in 5 seconds!"
-                 else
-                     good "HTTP test $SERVICETARGET on $pod suceeded."
-                 fi
-             else
-                 if  kubectl -n $ns exec $pod -- sh -c "if curl --max-time 5 -k https://$SERVICETARGET; then exit 0; else exit 1; fi" 2>&1|grep -e 'command terminated with exit code 1';then
-                     error "https://$SERVICETARGET failed to respond to curl in 5 seconds!"
-                 else
-                     good "HTTPS test $SERVICETARGET on $pod suceeded."
-                 fi
-             fi
-        fi
+    NAMESPACE="devtest5"
 
+    # Get all deployments in the specified namespace
+    deployments=$(kubectl get deployments -n "$NAMESPACE" -o json)
+
+    # Check if there are any deployments
+    if [[ $(echo "$deployments" | jq '.items | length') -eq 0 ]]; then
+        echo "No deployments found in namespace $NAMESPACE."
+        exit 0
+    fi
+
+    # Initialize a flag to track the status
+    all_deployments_ok=true
+
+    # Loop through each deployment
+    echo "$deployments" | jq -c '.items[]' | while read -r deployment; do
+        name=$(echo "$deployment" | jq -r '.metadata.name')
+        desired_replicas=$(echo "$deployment" | jq -r '.spec.replicas')
+
+        # Get the pods associated with the deployment
+        pods=$(kubectl get pods -n "$NAMESPACE" -l app="$name" -o json)
+
+        # Check if all pods are ready
+        all_pods_ready=true
+        echo "$pods" | jq -c '.items[]' | while read -r pod; do
+            pod_name=$(echo "$pod" | jq -r '.metadata.name')
+            pod_status=$(echo "$pod" | jq -r '.status.conditions[] | select(.type=="Ready") | .status')
+
+            if [[ "$pod_status" != "True" ]]; then
+                echo "Pod $pod_name in deployment $name is not ready."
+                all_pods_ready=false
+            fi
+        done
+
+        if [[ "$all_pods_ready" == true ]]; then
+            echo "All pods in deployment $name are ready."
+        else
+            all_deployments_ok=false
+        fi
     done
-    done
+
+    # Exit with a status based on the deployments' health
+    if [ "$all_deployments_ok" = true ]; then
+        good "All deployments in namespace $NAMESPACE are fully functional."
+    else
+        warn "Some deployments in namespace $NAMESPACE are not fully functional."
+    fi
 
 }
 
