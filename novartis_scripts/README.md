@@ -1,6 +1,6 @@
 ## Scripts Overview
 
-The Scripts below 
+Verify the functionality of Nirmata shared and non-shared services, as well as the pre-requisites for these services.
 
 ---
 
