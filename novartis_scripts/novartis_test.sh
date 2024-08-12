@@ -127,6 +127,174 @@ node_test(){
         warn "Docker proxy configuration not found."
     fi
 
+    echo "Checking for swap"
+    if [[ $(swapon -s | wc -l) -gt 1 ]] ;  then
+        if [[ $fix_issues -eq 0 ]];then
+            warn "Found swap enabled"
+            echo "Applying the following fixes"
+            ech 'swapoff -a'
+            swapoff -a
+            echo "sed -i '/[[:space:]]*swap[[:space:]]*swap/d' /etc/fstab"
+            sed -i '/[[:space:]]*swap[[:space:]]*swap/d' /etc/fstab
+        else
+            error "Found swap enabled!"
+        fi
+    fi
+
+    echo "Testing SELinux"
+    if type sestatus &>/dev/null;then
+        if ! sestatus | grep "Current mode" |grep -e permissive -e disabled;then
+            warn 'SELinux enabled'
+            if [[ $fix_issues -eq 0 ]];then
+                echo "Applying the following fixes"
+                echo '  sed -i s/^SELINUX=.*/SELINUX=permissive/ /etc/selinux/config'
+                sed -i s/^SELINUX=.*/SELINUX=permissive/ /etc/selinux/config
+                echo '  setenforce 0'
+                setenforce 0
+            else
+                echo Consider the following changes to disabled SELinux if you are having issues:
+                echo '  sed -i s/^SELINUX=.*/SELINUX=permissive/ /etc/selinux/config'
+                echo '  setenforce 0'
+            fi
+        fi
+    else
+        #assuming debian/ubuntu don't do selinux
+        if [ -e /etc/os-release ]  &&  ! grep -q -i -e debian -e ubuntu /etc/os-release;then
+            warn 'sestatus binary not found assuming SELinux is disabled.'
+        fi
+    fi
+
+    #test kernel ip forward settings
+    if grep -q 0 /proc/sys/net/ipv4/ip_forward;then
+            if [[ $fix_issues -eq 0 ]];then
+                warn net.ipv4.ip_forward is set to 0
+                echo "Applying the following fixes"
+                echo '  sysctl -w net.ipv4.ip_forward=1'
+                sysctl -w net.ipv4.ip_forward=1
+                echo '  echo net.ipv4.ip_forward=1 >> /etc/sysctl.conf'
+                echo net.ipv4.ip_forward=1 >> /etc/sysctl.conf
+            else
+                error net.ipv4.ip_forward is set to 0
+                echo Consider the following changes:
+                echo '  sysctl -w net.ipv4.ip_forward=1'
+                echo '  echo net.ipv4.ip_forward=1 >> /etc/sysctl.conf'
+            fi
+    else
+        good ip_forward enabled
+    fi
+
+    if [ ! -e /proc/sys/net/bridge/bridge-nf-call-iptables ];then
+        if [[ $fix_issues -eq 0 ]];then
+            warn '/proc/sys/net/bridge/bridge-nf-call-iptables does not exist!'
+            echo "Applying the following fixes"
+            echo '  modprobe br_netfilter'
+            modprobe br_netfilter
+            echo '  echo "br_netfilter" > /etc/modules-load.d/br_netfilter.conf'
+            echo "br_netfilter" > /etc/modules-load.d/br_netfilter.conf
+        else
+            error '/proc/sys/net/bridge/bridge-nf-call-iptables does not exist!'
+            echo 'Is the br_netfilter module loaded? "lsmod |grep br_netfilter"'
+            echo Consider the following changes:
+            echo '  modprobe br_netfilter'
+            echo '  echo "br_netfilter" > /etc/modules-load.d/br_netfilter.conf'
+        fi
+    fi
+    if grep -q 0 /proc/sys/net/bridge/bridge-nf-call-iptables;then
+        if [[ $fix_issues -eq 0 ]];then
+            warn "Bridge netfilter disabled!!"
+            echo "Applying the following fixes"
+            echo '  sysctl -w net.bridge.bridge-nf-call-iptables=1'
+            sysctl -w net.bridge.bridge-nf-call-iptables=1
+            echo '  echo net.bridge.bridge-nf-call-iptables=1 >> /etc/sysctl.conf'
+            echo net.bridge.bridge-nf-call-iptables=1 >> /etc/sysctl.conf
+        else
+            error "Bridge netfilter disabled!!"
+            echo Consider the following changes:
+            echo '  sysctl -w net.bridge.bridge-nf-call-iptables=1'
+            echo '  echo net.bridge.bridge-nf-call-iptables=1 >> /etc/sysctl.conf'
+        fi
+    else
+        good bridge-nf-call-iptables enabled
+    fi
+
+
+    #TODO check for proxy settings, how, what, why
+
+    #test for docker
+    if ! systemctl is-active docker &>/dev/null ; then
+        warn 'Docker service is not active? Maybe you are using some other CRI??'
+    else
+        if docker info 2>/dev/null|grep mountpoint;then
+            warn 'Docker does not have its own mountpoint'
+            # What is the fix for this???
+        else
+            dockerVersion=$(docker --version | awk -F'[, ]+' '{print $3}')
+            if [[ $dockerVersion <  19.03.13 ]] ; then
+                warn 'Upgrade Docker to 19.03.13 or later'
+            else
+                good 'Docker is active'
+            fi
+        fi
+    fi
+
+    if type kubelet &>/dev/null;then
+        #test for k8 service
+        echo Found kubelet running local kubernetes tests
+        if ! systemctl is-active kubelet &>/dev/null ; then
+            error 'Kubelet is not active?'
+        else
+            good Kublet is active
+        fi
+
+        if ! systemctl is-enabled kubelet &>/dev/null ; then
+            if [[ $fix_issues -eq 0 ]];then
+                echo "Applying the following fixes"
+                echo systectl enable kubelet
+                systectl enable kubelet
+            else
+                error 'Kubelet is not set to run at boot?'
+            fi
+        else
+            good Kublet is enabled at boot
+        fi
+
+        if [ ! -e /opt/cni/bin/bridge ];then
+            warn '/opt/cni/bin/bridge not found is your CNI installed?'
+        fi
+    fi
+
+    # tests for containerd
+    if ! systemctl is-active containerd &>/dev/null ; then
+        warn 'Containerd service is not active? Maybe you are using some other CRI??'
+    else
+        containerdVersion=$(containerd --version | awk '{print $3}')
+        if [[ $containerdVersion < 1.6.19 ]] ;then
+            warn 'Install containerd version 1.6.19 or later'
+        else
+            CONFIG_FILE="/etc/containerd/config.toml"
+            if grep -q 'SystemdCgroup = true' "$CONFIG_FILE"; then
+                good Containerd is active
+            else
+                warn "SystemdCgroup is not set to true in $CONFIG_FILE"
+            fi
+            
+        fi
+    fi
+
+    # tests for systemd-resolved
+    if ! systemctl is-active systemd-resolved &>/dev/null ; then
+        warn 'systemd-resolved is not running!'
+    else
+        good systemd-resolved is active
+    fi
+
+    # tests for firewalld
+    if systemctl is-active firewalld &>/dev/null ; then
+        warn 'firewalld is running, please turn it off using `sudo systemctl disable --now firewalld`'
+    else
+        good firewalld is inactive
+    fi
+
 }
 
 cluster_test(){
