@@ -30,7 +30,7 @@ This script performs the following tasks:
 2. **Make the Script Executable**:
 
     ```bash
-    chmod +x setup-kubernetes.sh
+    chmod +x modprobe-setup.sh
     ```
 
 3. **Run the Script**:
