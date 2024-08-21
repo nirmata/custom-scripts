@@ -68,6 +68,7 @@ Testing SELinux
 ip_forward enabled
 bridge-nf-call-iptables enabled
 Docker is active
+Containerd is active
 Found nirmata-agent.service testing Nirmata agent
 Test Nirmata Agent
 Nirmata Agent is running
@@ -86,8 +87,11 @@ Testing Zookeeper pods
 zk-0 is zookeeper standalone
 Found One Zookeeper Pod.
 Testing Kafka pods
-Found Kafka Pod kafka-0   1/1   Running   2     3d17h
-Found One Kafka Pod.
+Found Kafka Pod kafka-0
+Testing Kafka controller pods
+kafka-0 API is healthy!
+Found Kafka Controller Pod kafka-controller-0
+kafka-controller-0 API is healthy!
 Test completed with warnings.
 return is 2
 ```

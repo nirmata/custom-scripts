@@ -903,6 +903,24 @@ else
   fi
 fi
 
+# tests for containerd
+if ! systemctl is-active containerd &>/dev/null ; then
+    warn 'Containerd service is not active? Maybe you are using some other CRI??'
+else
+    containerdVersion=$(containerd --version | awk '{print $3}')
+    if [[ $containerdVersion < 1.6.19 ]] ;then
+        warn 'Install containerd version 1.6.19 or later'
+    else
+        CONFIG_FILE="/etc/containerd/config.toml"
+        if grep -q 'SystemdCgroup = true' "$CONFIG_FILE"; then
+            good Containerd is active
+        else
+            warn "SystemdCgroup is not set to true in $CONFIG_FILE"
+        fi
+        
+    fi
+fi
+
 #Customers often have time issues, which can cause cert issues.  Ex:cert is in future.
 if type chronyc &>/dev/null;then
   if chronyc activity |grep -q "^0 sources online";then
