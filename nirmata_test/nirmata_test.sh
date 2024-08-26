@@ -743,6 +743,36 @@ spec:
 local_test(){
 echo "Starting Local Tests"
 
+
+
+# Function to check if proxy configuration is present in a given file
+check_proxy_in_file() {
+  local file_path=$1
+  if [ -f "$file_path" ]; then
+    if grep -q -e "HTTP_PROXY" -e "HTTPS_PROXY" -e "NO_PROXY" -e "http_proxy" -e "https_proxy" -e "no_proxy" "$file_path"; then
+      good "Proxy configuration found in $file_path"
+    else
+      warn "No proxy configuration found in $file_path"
+    fi
+  else
+    error "$file_path does not exist"
+  fi
+}
+
+# Check Docker service configuration
+echo "Checking Docker service configuration..."
+check_proxy_in_file "/usr/lib/systemd/system/docker.service"
+
+# Check containerd service configuration
+echo "Checking containerd service configuration..."
+check_proxy_in_file "/usr/lib/systemd/system/containerd.service"
+
+# Check node level proxy settings
+echo "Checking node level proxy settings..."
+check_proxy_in_file "/etc/profile.d/proxy.sh"
+
+echo "Proxy configuration check completed."
+
 # Kubelet generally won't run if swap is enabled.
 if [[ $(swapon -s | wc -l) -gt 1 ]] ;  then
     if [[ $fix_issues -eq 0 ]];then
@@ -758,6 +788,7 @@ if [[ $(swapon -s | wc -l) -gt 1 ]] ;  then
   else
     good No swap found
 fi
+
 
 # It's possible to run docker with selinux, but we don't support that.
 if type sestatus &>/dev/null;then
@@ -839,6 +870,38 @@ fi
 #TODO check for proxy settings, how, what, why
 # Do we really need this has anyone complained?
 
+
+# Function to check if a port is enabled in iptables
+check_port() {
+    local port=$1
+    local protocol=$2
+    if sudo iptables -C INPUT -p "$protocol" --dport "$port" -j ACCEPT &>/dev/null ||
+       sudo iptables -C FORWARD -p "$protocol" --dport "$port" -j ACCEPT &>/dev/null; then
+        good "Port $port/$protocol is enabled in iptables."
+    else
+        warn "Port $port/$protocol is NOT enabled in iptables."
+    fi
+}
+
+# Function to check if protocol 4 (IP-in-IP for Calico) is enabled in iptables
+check_protocol() {
+    local protocol=$1
+    if sudo iptables -C INPUT -p "$protocol" -j ACCEPT &>/dev/null ||
+       sudo iptables -C FORWARD -p "$protocol" -j ACCEPT &>/dev/null; then
+        good "Protocol $protocol is enabled in iptables."
+    else
+        warn "Protocol $protocol is NOT enabled in iptables."
+    fi
+}
+
+# Verify specific ports
+check_port 9099 tcp
+check_port 4789 udp
+check_port 179 tcp
+
+# Verify protocol 4 (IP-in-IP for Calico)
+check_protocol 4
+
 #test for docker
 if ! systemctl is-active docker &>/dev/null ; then
     warn 'Docker service is not active? Maybe you are using some other CRI??'
@@ -897,11 +960,12 @@ else
     else
       warn docker is not versionlocked
       if [[ $fix_issues -eq 0 ]];then
-        echo_cmd sudo yum versionlock docker-ce
+        echo_cmd "yum install 'dnf-command(versionlock)'"
       fi
     fi
   fi
 fi
+
 
 # tests for containerd
 if ! systemctl is-active containerd &>/dev/null ; then
@@ -920,6 +984,31 @@ else
         
     fi
 fi
+
+
+check_kubernetes_processes() {
+  local processes_found=false
+  
+  # List of processes to check
+  local processes=("kube-proxy" "kube-apiserver" "kubelet" "kube-scheduler" "kube-controller-manager" "etcd")
+  
+  for process in "${processes[@]}"; do
+    if pgrep -f "$process" > /dev/null; then
+      processes_found=true
+      warn "Process '$process' is running. Check the proxy configuration and remove any unnecessary settings manually."
+    fi
+  done
+  
+  if ! $processes_found; then
+    good "No Kubernetes-related processes found."
+  fi
+}
+
+# Execute the process check
+echo "Checking for Kubernetes-related processes..."
+check_kubernetes_processes
+
+echo "Process check completed."
 
 #Customers often have time issues, which can cause cert issues.  Ex:cert is in future.
 if type chronyc &>/dev/null;then
@@ -972,8 +1061,6 @@ else
         warn '/opt/cni/bin/bridge not found is your CNI installed?'
     fi
 fi
-
-
 }
 
 # Test nirmata agent for nirmata built clusters
@@ -994,21 +1081,21 @@ if docker ps |grep -q -e nirmata/nirmata-host-agent;then
 else
     error nirmata-host-agent is not running!
 fi
-if docker ps |grep -q -e "hyperkube proxy";then
-    good Found hyperkube proxy
-else
-    error Hyperkube proxy is not running!
-fi
-if docker ps --no-trunc|grep -q -e 'hyperkube kubelet' ;then
-    good Found hyperkube kubelet
-else
-    error Hyperkube kubelet is not running!
-fi
-if docker ps |grep -q -e /opt/bin/flanneld ;then
-    good Found flanneld
-else
-    error Flanneld is not running!
-fi
+# if docker ps |grep -q -e "hyperkube proxy";then
+#     good Found hyperkube proxy
+# else
+#     error Hyperkube proxy is not running!
+# fi
+# if docker ps --no-trunc|grep -q -e 'hyperkube kubelet' ;then
+#     good Found hyperkube kubelet
+# else
+#     error Hyperkube kubelet is not running!
+# fi
+# if docker ps |grep -q -e /opt/bin/flanneld ;then
+#     good Found flanneld
+# else
+#     error Flanneld is not running!
+# fi
 # How do we determine if this is a master?
 #maybe grep -e /usr/local/bin/etcd -e /nirmata-kube-controller -e /metrics-server -e "hyperkube apiserver"
 #Are we sure these run only on the master?
