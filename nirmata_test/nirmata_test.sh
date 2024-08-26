@@ -743,16 +743,23 @@ spec:
 local_test(){
 echo "Starting Local Tests"
 
-
-
-# Function to check if proxy configuration is present in a given file
+# Function to check if all proxy configurations are present in a given file
 check_proxy_in_file() {
   local file_path=$1
+  local missing_params=()
+  local params=("HTTP_PROXY" "HTTPS_PROXY" "NO_PROXY" "http_proxy" "https_proxy" "no_proxy")
+
   if [ -f "$file_path" ]; then
-    if grep -q -e "HTTP_PROXY" -e "HTTPS_PROXY" -e "NO_PROXY" -e "http_proxy" -e "https_proxy" -e "no_proxy" "$file_path"; then
-      good "Proxy configuration found in $file_path"
+    for param in "${params[@]}"; do
+      if ! grep -q -e "$param" "$file_path"; then
+        missing_params+=("$param")
+      fi
+    done
+
+    if [ ${#missing_params[@]} -eq 0 ]; then
+      good "All proxy configurations are found in $file_path"
     else
-      warn "No proxy configuration found in $file_path"
+      warn "Missing proxy configurations in $file_path: ${missing_params[*]}"
     fi
   else
     error "$file_path does not exist"
@@ -772,6 +779,7 @@ echo "Checking node level proxy settings..."
 check_proxy_in_file "/etc/profile.d/proxy.sh"
 
 echo "Proxy configuration check completed."
+
 
 # Kubelet generally won't run if swap is enabled.
 if [[ $(swapon -s | wc -l) -gt 1 ]] ;  then
