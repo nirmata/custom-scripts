@@ -903,13 +903,39 @@ check_protocol() {
 }
 
 # Verify specific ports
+check_port 2379 tcp
+check_port 2380 tcp
+check_port 6443 tcp
+check_port 8090 tcp
+check_port 8091 tcp
+check_port 8472 udp
+check_port 10250 tcp
+check_port 10251 tcp
+check_port 10252 tcp
+check_port 10255 tcp
+check_port 10256 tcp
+check_port 10257 tcp
+check_port 10259 tcp
+check_port 179 tcp
 check_port 9099 tcp
 check_port 4789 udp
-check_port 179 tcp
 
-# Verify protocol 4 (IP-in-IP for Calico)
+# Additional cluster ports (incoming and outgoing)
+check_port 53 udp    # DNS
+check_port 443 tcp   # HTTPS
+check_port 30000:32768 tcp   # NodePort range
+
+# Uncomment if you want to check the full range individually
+# for port in {30000..32768}; do
+#     check_port $port tcp
+# done
+
+# DHCP ports (67/udp for server and 68/udp for client)
+check_port 67 udp
+check_port 68 udp
+
+# Protocol 4 (IP-in-IP)
 check_protocol 4
-
 #test for docker
 if ! systemctl is-active docker &>/dev/null ; then
     warn 'Docker service is not active? Maybe you are using some other CRI??'
