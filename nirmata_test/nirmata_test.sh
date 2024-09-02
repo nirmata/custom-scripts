@@ -23,6 +23,8 @@ QUIET="no"
 run_local=1
 # set to 1 to disable remote tests, this tests k8 functionality via kubectl
 run_remote=1
+# set to 1 to disable base_cluster_node tests, this tests base cluster nodes
+# run_base_cluster_local=1
 # These are used to run the mongo, zookeeper, kafka and kafka controller tests by default to test the nrimata setup.
 # Maybe we should fork this script to move the nirmata tests else where?
 run_mongo=1
@@ -68,6 +70,8 @@ df_free=80
 df_free_mongo=50
 # docker parition free space
 df_free_root=85
+# set the repository to test login for
+# repository='docker.io'
 
 if [ -f /.dockerenv ]; then
     export INDOCKER=0
@@ -214,6 +218,11 @@ for i in "$@";do
             fi
             shift
         ;;
+        # --base-cluster-local)
+        #     script_args=" $script_args $1 "
+        #     run_base_cluster_local=0
+        #     shift
+        # ;;  
         --cluster)
             script_args=" $script_args $1 "
             if [[ ! $all_args == *--local* ]] ; then
@@ -332,6 +341,12 @@ for i in "$@";do
             warnok=0
             shift
         ;;
+        # --repository)
+        #     script_args=" $script_args $1 $2 "
+        #     repository=$2
+        #     shift
+        #     shift
+        # ;;
         #--email-opts)
         #    script_args=" $script_args $1 $2 "
         #    EMAIL_OPTS="\'$2\'"
@@ -1179,7 +1194,7 @@ fi
     fi
 
     # Test for zk, kafka and mongodb directory exists
-    dirs=("/app/nirmata/zk" "/app/nirmata/kafka" "/app/nirmata/mongodb")
+    dirs=("/apps/nirmata/zk" "/apps/nirmata/kafka" "/apps/nirmata/mongodb")
 
     for dir in "${dirs[@]}"; do
         if [ -d $dir ]; then
@@ -1190,7 +1205,7 @@ fi
     done
 
     # Test for Node Space Allocation (To be modified)
-    paths="/var/nirmata"
+    paths="/apps/nirmata"
 
     for path in $paths; do
         if df -h | grep -q "$path"; then
@@ -1205,17 +1220,18 @@ fi
         fi
     done
 
-    # Test for repository access
-    repository_url=$repository
-    pullRes=$(docker pull "$repository_url" 2>&1)
-
-    if [ $? -eq 0 ]; then
-        good "Access to the repository is available and Docker can pull the image."
-    else
-        warn "Cannot access the repository or pull the image."
-    fi
-
 }
+
+# base_cluster_local(){
+#     # Test for repository access
+#     pullRes=$(docker login "$repository" 2>&1)
+
+#     if [ $? -eq 0 ]; then
+#         good "Access to the repository is present."
+#     else
+#         warn "Cannot access the repository!"
+#     fi
+# }
 
 # Test nirmata agent for nirmata built clusters
 test_agent(){
@@ -1301,6 +1317,11 @@ fi
 if [[ $run_local -eq 0 ]];then
     local_test
 fi
+
+# #tests local system for compatiblity
+# if [[ $run_base_cluster_local -eq 0 ]];then
+#     base_cluster_local
+# fi
 
 # test kubernetes cluster
 if [[ $run_remote -eq 0 ]];then
