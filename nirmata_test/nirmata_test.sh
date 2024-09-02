@@ -820,11 +820,11 @@ check_proxy_in_file() {
 }
 
 # Check Docker service configuration
-echo "Checking Docker service configuration..."
+echo "Checking Docker proxy configuration..."
 check_proxy_in_file "/usr/lib/systemd/system/docker.service"
 
 # Check containerd service configuration
-echo "Checking containerd service configuration..."
+echo "Checking containerd proxy configuration..."
 check_proxy_in_file "/usr/lib/systemd/system/containerd.service"
 
 # Check node level proxy settings
@@ -1082,7 +1082,7 @@ check_kubernetes_processes() {
   for process in "${processes[@]}"; do
     if pgrep -f "$process" > /dev/null; then
       processes_found=true
-      warn "Process '$process' is running. Check the proxy configuration and remove any unnecessary settings manually."
+      warn "Process '$process' is running. Verify it by running 'ps -ef | grep $process' and remove it using 'kill -9 $process'."
     fi
   done
   
@@ -1213,15 +1213,6 @@ fi
         good "Access to the repository is available and Docker can pull the image."
     else
         warn "Cannot access the repository or pull the image."
-    fi
-
-    # Test for docker proxy
-    proxy_conf="/etc/systemd/system/docker.service.d/http-proxy.conf"
-
-    if [ -f "$proxy_conf" ]; then
-        good "Docker is configured to use the proxy."
-    else
-        warn "Docker proxy configuration not found."
     fi
 
     echo "Checking for swap"
