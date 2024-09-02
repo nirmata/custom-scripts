@@ -1215,21 +1215,6 @@ fi
         warn "Cannot access the repository or pull the image."
     fi
 
-    echo "Checking for swap"
-    if [[ $(swapon -s | wc -l) -gt 1 ]] ;  then
-        if [[ $fix_issues -eq 0 ]];then
-            warn "Found swap enabled"
-            echo "Applying the following fixes"
-            ech 'swapoff -a'
-            swapoff -a
-            echo "sed -i '/[[:space:]]*swap[[:space:]]*swap/d' /etc/fstab"
-            sed -i '/[[:space:]]*swap[[:space:]]*swap/d' /etc/fstab
-        else
-            error "Found swap enabled!"
-        fi
-    fi
-
-
 }
 
 # Test nirmata agent for nirmata built clusters
