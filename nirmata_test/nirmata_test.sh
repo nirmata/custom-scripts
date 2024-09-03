@@ -218,11 +218,11 @@ for i in "$@";do
             fi
             shift
         ;;
-        # --base-cluster-local)
-        #     script_args=" $script_args $1 "
-        #     run_base_cluster_local=0
-        #     shift
-        # ;;  
+        --base-cluster-local)
+            script_args=" $script_args $1 "
+            run_base_cluster_local=0
+            shift
+        ;;  
         --cluster)
             script_args=" $script_args $1 "
             if [[ ! $all_args == *--local* ]] ; then
@@ -1193,6 +1193,18 @@ fi
         warn "/var/lib/docker does not exist."
     fi
 
+}
+
+base_cluster_local(){
+    # # Test for repository access
+    # pullRes=$(docker login "$repository" 2>&1)
+
+    # if [ $? -eq 0 ]; then
+    #     good "Access to the repository is present."
+    # else
+    #     warn "Cannot access the repository!"
+    # fi
+
     # Test for zk, kafka and mongodb directory exists
     dirs=("/apps/nirmata/zk" "/apps/nirmata/kafka" "/apps/nirmata/mongodb")
 
@@ -1219,19 +1231,7 @@ fi
             warn "$path is not found."
         fi
     done
-
 }
-
-# base_cluster_local(){
-#     # Test for repository access
-#     pullRes=$(docker login "$repository" 2>&1)
-
-#     if [ $? -eq 0 ]; then
-#         good "Access to the repository is present."
-#     else
-#         warn "Cannot access the repository!"
-#     fi
-# }
 
 # Test nirmata agent for nirmata built clusters
 test_agent(){
@@ -1318,10 +1318,10 @@ if [[ $run_local -eq 0 ]];then
     local_test
 fi
 
-# #tests local system for compatiblity
-# if [[ $run_base_cluster_local -eq 0 ]];then
-#     base_cluster_local
-# fi
+#tests local system for compatiblity
+if [[ $run_base_cluster_local -eq 0 ]];then
+    base_cluster_local
+fi
 
 # test kubernetes cluster
 if [[ $run_remote -eq 0 ]];then
