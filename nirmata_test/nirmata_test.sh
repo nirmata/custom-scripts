@@ -24,7 +24,7 @@ run_local=1
 # set to 1 to disable remote tests, this tests k8 functionality via kubectl
 run_remote=1
 # set to 1 to disable base_cluster_node tests, this tests base cluster nodes
-# run_base_cluster_local=1
+run_base_cluster_local=1
 # These are used to run the mongo, zookeeper, kafka and kafka controller tests by default to test the nrimata setup.
 # Maybe we should fork this script to move the nirmata tests else where?
 run_mongo=1
@@ -45,11 +45,13 @@ all_args="$@"
 if [[ ! $all_args == *--cluster* ]] ; then
     if [[ ! $all_args == *--local* ]] ; then
         if [[ ! $all_args == *--nirmata* ]] ; then
-            # default to testing nirmata
-            run_mongo=0
-            run_zoo=0
-            run_kafka=0
-            run_kafka_controller=0
+            if [[ ! $all_args == *--base-cluster-local* ]] ; then
+                # default to testing nirmata
+                run_mongo=0
+                run_zoo=0
+                run_kafka=0
+                run_kafka_controller=0
+            fi
         fi
     fi
 fi
@@ -158,6 +160,7 @@ helpfunction(){
     echo "--email --to testy@nirmata.com --smtp smtp.example.com  --user sam.silbory --passwd 'foo!foo'"
     echo "Authenication with gmail: (Requires an app password be used!)"
     echo "--email --to testy@nirmata.com --smtp smtp.gmail.com:587  --user sam.silbory --passwd 'foo!foo'"
+    echo " --base-cluster-local to test base cluster nodes"
 }
 
 # deal with args
@@ -221,6 +224,12 @@ for i in "$@";do
         --base-cluster-local)
             script_args=" $script_args $1 "
             run_base_cluster_local=0
+            if [[ ! $all_args == *--cluster* ]] ; then
+                run_remote=1
+            fi
+            if [[ ! $all_args == *--local* ]] ; then
+                run_local=1
+            fi
             shift
         ;;  
         --cluster)
