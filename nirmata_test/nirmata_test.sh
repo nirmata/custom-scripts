@@ -845,11 +845,11 @@ check_proxy_in_file() {
 
 # Check Docker service configuration
 echo "Checking Docker proxy configuration..."
-check_proxy_in_file "/usr/lib/systemd/system/docker.service"
+check_proxy_in_file "/etc/systemd/system/docker.service.d/http-proxy.conf"
 
 # Check containerd service configuration
 echo "Checking containerd proxy configuration..."
-check_proxy_in_file "/usr/lib/systemd/system/containerd.service"
+check_proxy_in_file "/etc/systemd/system/containerd.service.d"
 
 # Check node level proxy settings
 echo "Checking node level proxy settings..."
