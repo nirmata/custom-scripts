@@ -24,7 +24,7 @@ The script performs connectivity checks for various ports used by Kubernetes com
 
 1. **Download the Script**:
    ```bash
-   wget https://github.com/nirmata/custom-scripts/blob/master/kubernetes_port_check/port-check.sh
+   wget https://raw.githubusercontent.com/nirmata/custom-scripts/master/kubernetes_port_check/port-check.sh
    chmod +x port-check.sh
    ```
 
