@@ -13,11 +13,12 @@ warn() {
 check_telnet() {
     local host=$1
     local port=$2
-    local service=$3
+    local component=$3
+    local node_type=$4
     if (echo > /dev/tcp/$host/$port) &>/dev/null; then
-        good "Connection to $host:$port ($service) successful via telnet."
+        good "Connection to $host:$port ($component) successful via telnet from the $node_type node."
     else
-        warn "Connection to $host:$port ($service) failed via telnet."
+        warn "Connection to $host:$port ($component) failed via telnet from the $node_type node."
     fi
 }
 
@@ -48,54 +49,95 @@ else
     exit 1
 fi
 
-echo "Node Type: $NODE_TYPE"
+echo "Running on the $NODE_TYPE node."
+
+# Ports and components for master and worker nodes
+declare -A MASTER_PORTS=(
+    [6443]="Kubernetes API Server"
+    [2379]="etcd"
+    [10259]="KubeScheduler"
+    [10257]="Controller-Manager"
+)
+
+declare -A WORKER_PORTS=(
+    [10250]="kubelet"
+    [10256]="kube-proxy"
+)
+
+declare -A COMMON_PORTS=(
+    [179]="BGP"
+    [9099]="Custom Service"
+    [4789]="VXLAN"
+)
 
 # Perform checks based on node type
+if [ "$NODE_TYPE" == "worker" ]; then
+    echo "Performing checks from the worker node..."
 
-if [ "$NODE_TYPE" == "master" ]; then
-    # Master node checks
+    # Check only master-related ports from worker to master
+    for port in "${!MASTER_PORTS[@]}"; do
+        component=${MASTER_PORTS[$port]}
+        echo "Checking $component on port $port from worker to master..."
+        check_telnet "$MASTER_IP" "$port" "$component" "worker to master"
+    done
 
-    # 1. Telnet master IP 6443 (API Server)
-    echo "Checking port 6443 (Kubernetes API Server)..."
-    check_telnet "$MASTER_IP" 6443 "Kubernetes API Server"
+    # Check worker-related ports on both worker to master and worker to worker
+    for port in "${!WORKER_PORTS[@]}"; do
+        component=${WORKER_PORTS[$port]}
+        echo "Checking $component on port $port from worker to master..."
+        check_telnet "$MASTER_IP" "$port" "$component" "worker to master"
+        echo "Checking $component on port $port from worker to worker..."
+        check_telnet "$WORKER_IP" "$port" "$component" "worker to worker"
+    done
 
-    # 2. Telnet master IP 2379 (etcd)
-    echo "Checking port 2379 (etcd)..."
-    check_telnet "$MASTER_IP" 2379 "etcd"
+    # Check common ports (BGP, Custom Service, VXLAN) on both worker to master and worker to worker
+    for port in "${!COMMON_PORTS[@]}"; do
+        component=${COMMON_PORTS[$port]}
+        echo "Checking $component on port $port from worker to master..."
+        check_telnet "$MASTER_IP" "$port" "$component" "worker to master"
+        echo "Checking $component on port $port from worker to worker..."
+        check_telnet "$WORKER_IP" "$port" "$component" "worker to worker"
+    done
 
-    # 3. Telnet 10259 (KubeScheduler) and 10257 (Controller-Manager)
-    echo "Checking ports 10259 (KubeScheduler) and 10257 (Controller-Manager)..."
-    check_telnet "$MASTER_IP" 10259 "KubeScheduler"
-    check_telnet "$MASTER_IP" 10257 "Controller-Manager"
-
-    # 4. Random NodePort check (30000-32767)
+    # Random NodePort check (30000-32767)
     RANDOM_PORT=$((30000 + RANDOM % 2768))
-    echo "Checking random NodePort $RANDOM_PORT..."
-    check_telnet "$MASTER_IP" "$RANDOM_PORT" "NodePort"
+    echo "Checking random NodePort $RANDOM_PORT on the worker node..."
+    check_telnet "$WORKER_IP" "$RANDOM_PORT" "NodePort" "worker"
+    echo "Checking random NodePort $RANDOM_PORT on the master node..."
+    check_telnet "$MASTER_IP" "$RANDOM_PORT" "NodePort" "worker"
 
-elif [ "$NODE_TYPE" == "worker" ]; then
-    # Worker node checks
+elif [ "$NODE_TYPE" == "master" ]; then
+    echo "Performing checks from the master node..."
 
-    # 1. Telnet master IP 6443 (API Server)
-    echo "Checking port 6443 (Kubernetes API Server) from worker..."
-    check_telnet "$MASTER_IP" 6443 "Kubernetes API Server"
+    # Check master-related ports from the master node
+    for port in "${!MASTER_PORTS[@]}"; do
+        component=${MASTER_PORTS[$port]}
+        echo "Checking $component on port $port from master to master..."
+        check_telnet "$MASTER_IP" "$port" "$component" "master"
+    done
 
-    # 2. Telnet master IP 2379 (etcd) from worker
-    echo "Checking port 2379 (etcd) from worker..."
-    check_telnet "$MASTER_IP" 2379 "etcd"
+    # Check kubelet and proxy ports from master to master and worker
+    for port in "${!WORKER_PORTS[@]}"; do
+        component=${WORKER_PORTS[$port]}
+        echo "Checking $component on port $port from master to master..."
+        check_telnet "$MASTER_IP" "$port" "$component" "master"
+        echo "Checking $component on port $port from master to worker..."
+        check_telnet "$WORKER_IP" "$port" "$component" "master"
+    done
 
-    # 3. Telnet 10250 (kubelet) Worker to Master and Worker to Worker
-    echo "Checking port 10250 (kubelet)..."
-    check_telnet "$MASTER_IP" 10250 "kubelet (master to worker)"
-    check_telnet "$WORKER_IP" 10250 "kubelet (worker to worker)"
+    # Check common ports (BGP, Custom Service, VXLAN) from master to master and worker
+    for port in "${!COMMON_PORTS[@]}"; do
+        component=${COMMON_PORTS[$port]}
+        echo "Checking $component on port $port from master to master..."
+        check_telnet "$MASTER_IP" "$port" "$component" "master"
+        echo "Checking $component on port $port from master to worker..."
+        check_telnet "$WORKER_IP" "$port" "$component" "master"
+    done
 
-    # 4. Telnet 10256 (kube-proxy) Worker to Master and Worker to Worker
-    echo "Checking port 10256 (kube-proxy)..."
-    check_telnet "$MASTER_IP" 10256 "kube-proxy (master to worker)"
-    check_telnet "$WORKER_IP" 10256 "kube-proxy (worker to worker)"
-
-    # 5. Random NodePort check (30000-32767)
+    # Random NodePort check (30000-32767)
     RANDOM_PORT=$((30000 + RANDOM % 2768))
-    echo "Checking random NodePort $RANDOM_PORT..."
-    check_telnet "$WORKER_IP" "$RANDOM_PORT" "NodePort"
+    echo "Checking random NodePort $RANDOM_PORT on the master node..."
+    check_telnet "$MASTER_IP" "$RANDOM_PORT" "NodePort" "master"
+    echo "Checking random NodePort $RANDOM_PORT on the worker node..."
+    check_telnet "$WORKER_IP" "$RANDOM_PORT" "NodePort" "master"
 fi
