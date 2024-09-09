@@ -9,16 +9,31 @@ warn() {
     echo -e "[\e[33mWARN\e[0m] $1"
 }
 
+error() {
+    echo -e "[\e[31mERROR\e[0m] $1"
+}
+
 # Function to check if a port is open via telnet
 check_telnet() {
     local host=$1
     local port=$2
     local component=$3
     local node_type=$4
-    if (echo > /dev/tcp/$host/$port) &>/dev/null; then
+    local timeout=5
+    local output
+
+    # Use telnet to check port and capture output
+    output=$( (echo > /dev/tcp/$host/$port) 2>&1 )
+    if [ $? -eq 0 ]; then
         good "Connection to $host:$port ($component) successful via telnet from the $node_type node."
     else
-        warn "Connection to $host:$port ($component) failed via telnet from the $node_type node."
+        if echo "$output" | grep -q "Connection refused"; then
+            error "Connection to $host:$port ($component) refused from the $node_type node. Output: $output"
+        elif echo "$output" | grep -q "timed out"; then
+            error "Connection to $host:$port ($component) timed out from the $node_type node. Output: $output"
+        else
+            warn "Connection to $host:$port ($component) failed from the $node_type node. Output: $output"
+        fi
     fi
 }
 
@@ -139,5 +154,5 @@ elif [ "$NODE_TYPE" == "master" ]; then
     echo "Checking random NodePort $RANDOM_PORT on the master node..."
     check_telnet "$MASTER_IP" "$RANDOM_PORT" "NodePort" "master"
     echo "Checking random NodePort $RANDOM_PORT on the worker node..."
-    check_telnet "$WORKER_IP" "$RANDOM_PORT" "NodePort" "master"
+    check_telnet "$WORKER_IP" "$RANDOM_PORT" "$component" "master"
 fi

@@ -1,89 +1,60 @@
-```markdown
-# Kubernetes Port Check Script
+# Port Connectivity Check Script
 
-This script performs connectivity checks between master and worker nodes in a Kubernetes cluster. It verifies if specific ports are open and reachable via `netcat` (nc) and reports the results.
+This script checks the connectivity of specific ports on master and worker nodes in a Kubernetes cluster. It uses `telnet` to determine if the ports are open and provides detailed feedback on connection issues.
 
-## Script Download and Setup
+## Script Overview
 
-### Download the Script
+The script performs connectivity checks for various ports used by Kubernetes components, services, and common networking ports. It can run from either the master or worker node and checks both internal and external connectivity.
 
-You can download the script directly using `wget`:
+### Features
 
-```bash
-wget https://github.com/nirmata/custom-scripts/blob/master/kubernetes_port_check/port-check.sh
-```
+- **Port Checking**: Verifies if specified ports are open on master and worker nodes.
+- **Detailed Output**: Captures and reports connection issues, including specific reasons for failure.
+- **Random NodePort Check**: Validates connectivity to a random NodePort within the typical range.
 
-### Make the Script Executable
+## Prerequisites
 
-After downloading the script, make it executable with the following command:
-
-```bash
-chmod +x port-check.sh
-```
+- **telnet**: Ensure `telnet` is installed on your system. Install it using:
+  ```bash
+  sudo apt-get install telnet   # Debian-based distributions
+  sudo yum install telnet       # RHEL-based distributions
+  ```
 
 ## Usage
 
-### Prerequisites
+1. **Download the Script**:
+   ```bash
+   wget https://github.com/nirmata/custom-scripts/blob/master/kubernetes_port_check/port-check.sh
+   chmod +x port-check.sh
+   ```
 
-- `nc` (Netcat) must be installed on the nodes where the script will run.
-- `timeout` command should be available on the system.
+2. **Run the Script**:
+   ```bash
+   ./port-check.sh <master-ip> <worker-ip>
+   ```
 
-### Running the Script
+   Replace `<master-ip>` and `<worker-ip>` with the IP addresses of your master and worker nodes, respectively.
 
-The script requires two arguments: the IP addresses of the master and worker nodes.
+## Example
 
-#### Syntax
-
+To check ports with a master node IP of `172.31.13.198` and a worker node IP of `172.31.14.159`, run:
 ```bash
-./port-check.sh <master-ip> <worker-ip>
+./port-check.sh 172.31.13.198 172.31.14.159
 ```
 
-#### Example
+## Output
 
-```bash
-./port-check.sh 192.168.1.10 192.168.1.20
+The script provides detailed feedback, including:
+- **GOOD**: Indicates a successful connection.
+- **WARN**: Shows warnings with the output of the failed connection attempts.
+- **ERROR**: Specifies exact issues like connection refusal or timeouts.
+
+Example output:
+```
+Checking Custom Service on port 9099 from worker to master...
+[WARN] Connection to 172.31.13.198:9099 (Custom Service) failed from the worker to master node. Output: 
 ```
 
-### Script Behavior
+## Contribution
 
-- **Node Detection**: The script determines if it is running on a master or worker node based on the provided IP addresses and the current node's IP.
-- **Port Checks**: Depending on the node type, the script will check the following:
-  - **Worker Node**:
-    - Ports for master components (e.g., Kubernetes API Server, etcd, etc.)
-    - Ports for worker components (e.g., kubelet, kube-proxy)
-    - Common ports (e.g., BGP, VXLAN)
-    - A random NodePort
-  - **Master Node**:
-    - Ports for master components
-    - Ports for kubelet and proxy services to master and worker nodes
-    - Common ports (e.g., BGP, VXLAN)
-    - A random NodePort
-
-### Output
-
-- **GOOD**: Indicates successful connection.
-- **WARN**: Indicates an unexpected error or issue.
-- **ERROR**: Specifies a connection refusal or timeout.
-
-### Example Output
-
-```text
-Master IP: 192.168.1.10
-Worker IP: 192.168.1.20
-Running on the worker node.
-Checking Kubernetes API Server on port 6443 from worker to master...
-[GOOD] Connection to 192.168.1.10:6443 (Kubernetes API Server) successful via netcat from the worker node.
-...
-Checking random NodePort 30859 on the worker node...
-[WARN] Connection to 192.168.1.20:30859 (NodePort) resulted in an unexpected error: nc: connect to 192.168.1.20 port 30859 (tcp) failed: Connection refused from the worker node.
-```
-
-### Notes
-
-- Ensure that the script is executable. You can make it executable with `chmod +x port-check.sh`.
-- Adjust the port lists and node types as needed for your specific Kubernetes setup.
-
-## Contact
-
-For issues or questions, please open an issue on the [GitHub repository](https://github.com/nirmata/custom-scripts/issues).
-```
+If you have any improvements or find issues, please feel free to contribute or open an issue on the [GitHub repository](https://github.com/nirmata/custom-scripts).
