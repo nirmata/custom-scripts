@@ -14,7 +14,7 @@ allns=1
 # set to zero to default to curl url
 curl=1
 # Default namespace for nirmata services
-namespace="prod"
+namespace="nirmata"
 # Should we continue to execute on failure
 CONTINUE="yes"
 # Set to yes to be quieter
