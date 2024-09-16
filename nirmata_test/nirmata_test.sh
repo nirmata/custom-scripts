@@ -849,7 +849,7 @@ check_proxy_in_file "/etc/systemd/system/docker.service.d/http-proxy.conf"
 
 # Check containerd service configuration
 echo "Checking containerd proxy configuration..."
-check_proxy_in_file "/etc/systemd/system/containerd.service.d"
+check_proxy_in_file "/etc/systemd/system/containerd.service"
 
 # Check node level proxy settings
 echo "Checking node level proxy settings..."
