@@ -2,7 +2,7 @@
 
 ## main
 
-if kubectl get pods -n nirmata --no-headers | egrep -v 'mongo|zk|kafka' 1> /dev/null; then
+if kubectl get pods -n nirmata --no-headers | egrep -v 'mongo|zk|kafka|kafka-controller' 1> /dev/null; then
         echo -e "\nPlease scale down non shared services before performing the restore\n"
         exit 1
 fi
@@ -15,12 +15,13 @@ fi
 # List all mongo pods
 mongos="mongodb-0 mongodb-1 mongodb-2"
 
-for mongo in $mongos
-do
-    cur_mongo=$(kubectl -n nirmata exec $mongo -c mongodb -- sh -c 'echo "db.serverStatus()" |mongo' 2>&1|grep  '"ismaster"')
-    if [[  $cur_mongo =~ "true" ]];then
+for mongo in $mongos; do
+    # Check if the pod is the MongoDB master
+    cur_mongo=$(kubectl -n nirmata exec $mongo -c mongodb -- bash -c 'mongo --eval "db.isMaster().ismaster" --quiet' 2>&1)
+    if [[ "$cur_mongo" == "true" ]]; then
         echo "$mongo is master"
         mongo_master=$mongo
+        break
     fi
 done
 
