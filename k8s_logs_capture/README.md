@@ -1,38 +1,56 @@
-Log Capture Script
-This script captures logs from all pods associated with a Kubernetes Deployment or StatefulSet for a specified duration (default: 10 minutes). The logs are saved into a directory and compressed into a ZIP file in the current working directory. The script also handles manual interruption and zips the logs on cancellation.
+# Log Capture Script for Kubernetes Deployments/StatefulSets
 
-Prerequisites
-A working Kubernetes cluster with kubectl configured to interact with it.
-Bash shell (default on most Linux and macOS environments).
-Permissions to access the Kubernetes cluster and view pod logs.
-Usage
-Download the script: Download the capture_logs.sh script from the repository or create it manually using the script provided below.
+This script captures logs from all pods associated with one or more Kubernetes `Deployments` or `StatefulSets` in a specified namespace for a defined duration. It saves the logs into a directory and compresses them into a ZIP file in the current working directory.
 
-Make the script executable: After downloading or creating the script, make it executable:
+## Features
 
-bash
-Copy code
-chmod +x capture_logs.sh
-Run the script: Run the script using the following format:
+- Supports capturing logs from multiple `Deployments` or `StatefulSets` in one go.
+- Captures logs for a default duration of 10 minutes.
+- Logs are stored in a timestamped folder and compressed into a zip file.
+- Handles manual interruption and ensures logs are still saved if the process is interrupted.
 
-bash
-Copy code
-./capture_logs.sh <resource-type> <resource-name> <namespace>
-Arguments:
+## Prerequisites
 
-Resource Type: Specify either deploy for Deployment or sts for StatefulSet.
-Resource Name: The name of the Deployment or StatefulSet to capture logs from.
-Namespace: The namespace where the resource is deployed.
-Example
-bash
-Copy code
-./capture_logs.sh sts mongodb pe420
-In this example, logs will be captured for all pods associated with the mongodb StatefulSet in the pe420 namespace for 10 minutes. If manually interrupted (Ctrl+C), the script will still create a ZIP file containing the logs.
+- Kubernetes cluster accessible via `kubectl`.
+- Proper permissions to read logs in the provided namespace.
+- Bash shell.
 
-Output
-Logs are saved in the current working directory in a folder named ${resource_name}_logs/.
-Logs are compressed into a ZIP file stored at ${resource_name}_logs.zip in the current working directory.
-Handling Interruptions
-If the log capture is interrupted manually (e.g., pressing Ctrl+C), the script automatically stops and zips any logs collected up to that point.
+## Usage
 
+```bash
+./capture_logs.sh <deploy|sts> <namespace> <resource-name1> [<resource-name2> ...]
+```
 
+### Arguments
+
+- `<deploy|sts>`: Specify whether the resources are Deployments (`deploy`) or StatefulSets (`sts`).
+- `<namespace>`: The namespace where the resources are running.
+- `<resource-name1>`: The name of the first StatefulSet or Deployment.
+- `[<resource-name2> ...]`: (Optional) Additional names of StatefulSets or Deployments to capture logs from.
+
+### Example
+
+To capture logs from two StatefulSets (`mongodb`, `postgres`) in the `pe420` namespace:
+
+```bash
+./capture_logs.sh sts pe420 mongodb postgres
+```
+
+### Log Files
+
+- The logs are captured for 10 minutes by default.
+- After capturing, the logs are saved into a directory named `logs_<timestamp>`.
+- The directory is compressed into a `logs.zip` file in the same directory where the script is executed.
+
+### Handling Manual Interruptions
+
+If the script is interrupted manually (e.g., with `Ctrl+C`), the logs captured until that point are still saved and compressed into the zip file.
+
+### Example Output
+
+```
+Starting log capture for sts mongodb in pe420 for 10 minutes...
+Starting log capture for sts postgres in pe420 for 10 minutes...
+Log capture interrupted. Zipping collected logs so far...
+Logs are saved and zipped at /path/to/logs.zip
+```
