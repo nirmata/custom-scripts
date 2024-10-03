@@ -2,11 +2,11 @@
 # Nirmata cleanup script
 
 # Stop and remove any running containers
-sudo docker stop $(sudo docker ps | grep “flannel” | gawk '{print $1}')
-sudo docker stop $(sudo docker ps | grep "nirmata" | gawk '{print $1}')
+sudo podman stop $(sudo podman ps | grep “flannel” | gawk '{print $1}')
+sudo podman stop $(sudo podman ps | grep "nirmata" | gawk '{print $1}')
 
-sudo docker stop $(sudo docker ps | grep "kube" | gawk '{print $1}')
-sudo docker rm  $(sudo docker ps -a | grep "Exit" |gawk '{print $1}')
+sudo podman stop $(sudo podman ps | grep "kube" | gawk '{print $1}')
+sudo podman rm  $(sudo podman ps -a | grep "Exit" |gawk '{print $1}')
 
 # Remove any cni plugins
 sudo rm -rf /etc/cni/*
@@ -28,10 +28,10 @@ sudo iptables -t mangle -X
 sudo iptables -t raw -F
 sudo iptables -t raw -X
 
-# Restart Docker
-sudo systemctl stop docker
-sudo systemctl start docker
-sudo docker ps
+# Restart podman
+sudo systemctl stop podman
+sudo systemctl start podman
+sudo podman ps
 
 # Deletes the CNI interface
 sudo ifconfig cni0 down
