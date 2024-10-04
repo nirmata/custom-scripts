@@ -847,6 +847,10 @@ check_proxy_in_file() {
 echo "Checking Docker proxy configuration..."
 check_proxy_in_file "/etc/systemd/system/docker.service.d/http-proxy.conf"
 
+# Check Podman service configuration
+echo "Checking Podman proxy configuration..."
+check_proxy_in_file "/etc/systemd/system/podman.service.d/http-proxy.conf"
+
 # Check containerd service configuration
 echo "Checking containerd proxy configuration..."
 check_proxy_in_file "/etc/systemd/system/containerd.service.d"
@@ -1032,6 +1036,27 @@ if ! systemctl is-enabled docker &>/dev/null;then
     good Docker is starting at boot
 fi
 
+# Test for Podman
+if ! systemctl is-active podman &>/dev/null ; then
+    warn 'Podman service is not active? Maybe you are using some other CRI??'
+    if [[ $fix_issues -eq 0 ]]; then
+        echo_cmd sudo systemctl start podman
+    fi
+else
+    good "Podman is running"
+fi
+
+if ! systemctl is-enabled podman &>/dev/null; then
+    warn 'Podman service is not starting at boot. Maybe you are using some other CRI??'
+    if [[ $fix_issues -eq 0 ]]; then
+        echo_cmd sudo systemctl enable podman
+    fi
+else
+    good "Podman is starting at boot"
+fi
+
+
+
 if docker info 2>/dev/null|grep mountpoint;then
   warn 'Docker does not have its own mountpoint'
   # What is the fix for this??? How does this happen I've never seen it.
@@ -1188,19 +1213,41 @@ else
 fi
 
 
-    # Test if containerd directory exists
+    # Test if containerd configuration directory exists
     if [ -d '/etc/containerd' ]; then
         good "/etc/containerd is correctly mounted."
     else
         warn "/etc/containerd is not mounted."
     fi
 
-    # Test if docker directory exists
+    # Test if containerd data directory exists (commonly used)
+    if [ -d '/var/lib/containerd' ]; then
+        good "/var/lib/containerd exists."
+    else
+        warn "/var/lib/containerd does not exist."
+    fi
+
+    # Test if Docker directory exists
     if [ -d '/var/lib/docker' ]; then
         good "/var/lib/docker exists."
     else
         warn "/var/lib/docker does not exist."
     fi
+
+    # Test if Podman configuration directory exists
+    if [ -d '/etc/containers' ]; then
+        good "/etc/containers is correctly mounted."
+    else
+        warn "/etc/containers is not mounted."
+    fi
+
+    # Test if Podman data directory exists
+    if [ -d '/var/lib/containers' ]; then
+        good "/var/lib/containers exists."
+    else
+        warn "/var/lib/containers does not exist."
+    fi
+
 
 }
 
