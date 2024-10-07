@@ -1,19 +1,24 @@
 #!/bin/bash
-# Nirmata cluster cleanup script for podman
+# Nirmata cluster cleanup script
+
+# Stop and remove any running docker containers
+sudo docker stop $(sudo docker ps | grep "flannel" | gawk '{print $1}')
+sudo docker stop $(sudo docker ps | grep "nirmata" | gawk '{print $1}')
+sudo docker stop $(sudo docker ps | grep "kube" | gawk '{print $1}')
+sudo docker rm $(sudo docker ps -a | grep "Exit" | gawk '{print $1}')
 
 # Stop and remove any running podman containers
-sudo podman stop $(sudo podman ps | grep "flannel" | gawk '{print $1}')
-sudo podman stop $(sudo podman ps | grep "nirmata" | gawk '{print $1}')
-sudo podman stop $(sudo podman ps | grep "kube" | gawk '{print $1}')
-sudo podman rm $(sudo podman ps -a | grep "Exited" | gawk '{print $1}')
+sudo podman stop $(sudo podman ps -a | grep "flannel" | gawk '{print $1}')
+sudo podman stop $(sudo podman ps -a | grep "nirmata" | gawk '{print $1}')
+sudo podman stop $(sudo podman ps -a | grep "kube" | gawk '{print $1}')
+sudo podman rm $(sudo podman ps -a | grep -E "Exited|Created" | awk '{print $1}')
 
-#Stop and remove any running containerd containers
-
+# Stop and remove any running containerd containers
 sudo ctr -n k8s.io task ls | awk '{print $1}' | xargs -t -I % sh -c '{ sudo ctr -n k8s.io task pause %;}'
 sudo ctr -n k8s.io task ls | awk '{print $1}' | xargs -t -I % sh -c '{ sudo ctr -n k8s.io task kill -s SIGKILL %;}'
 sudo ctr -n k8s.io c ls | awk '{print $1}' | xargs -t -I % sh -c '{ sudo ctr -n k8s.io c rm %;}'
 
-# Remove any cni plugins
+# Remove any CNI plugins
 sudo rm -rf /etc/cni/*
 sudo rm -rf /opt/cni/*
 
@@ -31,27 +36,79 @@ sudo iptables -t mangle -X
 sudo iptables -t raw -F
 sudo iptables -t raw -X
 
+# Restart Docker
+sudo systemctl stop docker
+sudo systemctl start docker
+sudo docker ps
+
 # Restart Podman service if necessary (depending on your OS, Podman may not require this)
 sudo systemctl stop podman
 sudo systemctl start podman
 sudo podman ps
 
-# Deletes the CNI interface
+# Deletes the CNI interfaces
 sudo ifconfig cni0 down
 sudo brctl delbr cni0
 sudo ifconfig kube-bridge down
 sudo ifconfig flannel.1 down
-sudo ifconfig | grep cali | awk -F ':' '{print $1}' | xargs -t -I % sh -c '{ ifconfig % down;}'
-sudo ip link | grep cali | awk '{print $2}' | awk -F '@' '{print $1}' | xargs -t -I % sh -c '{ ip link delete %;}'
-sudo ifconfig set dev tunl0 down
-sudo ifconfig tunl0 delete
-sudo ifconfig | grep tunl | awk -F ':' '{print $1}' | xargs -t -I % sh -c '{ ifconfig % down;}'
-sudo ifconfig | grep tunl | awk -F ':' '{print $1}' | xargs -t -I % sh -c '{ ip link delete %;}'
-sudo ip link | grep tunl | awk '{print $2}' | awk -F '@' '{print $1}' | xargs -t -I % sh -c '{ ip link delete %;}'
-sudo ip link delete kube-bridge
-sudo ip link delete cni0
-sudo ip link delete flannel.1
+sudo ifconfig | grep cali | awk -F ':' '{print $1}' | xargs -t -I % sh -c '{ sudo ifconfig % down;}'
+sudo ip link | grep cali | awk '{print $2}' | awk -F '@' '{print $1}' | xargs -t -I % sh -c '{ sudo ip link delete %;}'
+sudo ifconfig tunl0 down
+sudo ip link delete tunl0
 
 # Remove cluster database
 sudo rm -rf /data/fixtures
 sudo rm -rf /data/member
+
+# -------------------------
+# Verification Section
+# -------------------------
+
+echo "Verifying cleanup..."
+
+# Check if Docker, Podman, and containerd containers are still running
+if [ -z "$(sudo docker ps -q)" ] && [ -z "$(sudo podman ps -q)" ] && [ -z "$(sudo ctr -n k8s.io c ls | grep -v 'ID')" ]; then
+    echo "[GOOD] No running containers found."
+else
+    echo "[ERROR] Some containers are still running."
+fi
+
+# Check if CNI plugins and interfaces are removed
+if [ ! -d "/etc/cni" ] && [ ! -d "/opt/cni" ] && ! ifconfig | grep -q "cni0\|kube-bridge\|flannel.1\|cali"; then
+    echo "[GOOD] CNI plugins and interfaces are removed."
+else
+    echo "[ERROR] CNI plugins or interfaces still present."
+fi
+
+# Check if iptables rules are cleared
+if [ -z "$(sudo iptables -L -n | grep -v 'Chain' | grep -v 'target')" ] && [ -z "$(sudo iptables -t nat -L -n | grep -v 'Chain' | grep -v 'target')" ]; then
+    echo "[GOOD] iptables rules are cleared."
+else
+    echo "[ERROR] Some iptables rules still exist."
+fi
+
+# Check if Docker and Podman services are active
+docker_status=$(sudo systemctl is-active docker)
+podman_status=$(sudo systemctl is-active podman)
+if [ "$docker_status" == "active" ]; then
+    echo "[GOOD] Docker service is running."
+else
+    echo "[ERROR] Docker service is not active."
+fi
+
+if [ "$podman_status" == "active" ]; then
+    echo "[GOOD] Podman service is running."
+else
+    echo "[ERROR] Podman service is not active."
+fi
+
+# Additional process verification
+ps -ef | grep -E 'kube-proxy|kube-apiserver|kubelet|kube-scheduler|kube-controller-manager|etcd|kube-scheduler' | grep -v grep &>/dev/null
+if [ $? -eq 0 ]; then
+    echo "[WARN] Processes related to kube components are still running. Please remove them manually."
+else
+    echo "[GOOD] No processes related to kube components are running."
+fi
+
+# Final message
+echo "Cleanup and verification complete."
