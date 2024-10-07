@@ -857,7 +857,7 @@ elif command -v podman &>/dev/null; then
 
     # Check Podman service configuration
     echo "Checking Podman proxy configuration..."
-    check_proxy_in_file "/etc/systemd/system/podman.service.d/http-proxy.conf"
+    check_proxy_in_file "/usr/lib/systemd/system/podman.service"
 
 else
     echo "[ERROR] Neither Docker nor Podman is installed. Exiting."
