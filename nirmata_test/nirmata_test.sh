@@ -1231,38 +1231,56 @@ else
   fi
 fi
 
-# Are we running the agent or kubelet?
-if [ -e /etc/systemd/system/nirmata-agent.service ];then
-    echo Found nirmata-agent.service testing Nirmata agent
-    test_agent
+# Determine if Docker or Podman is running and check for Nirmata agent service accordingly
+if command -v docker &>/dev/null && systemctl is-active docker &>/dev/null; then
+    echo "Docker is running. Checking for Nirmata Docker agent..."
+    if [ -e /etc/systemd/system/nirmata-agent.service ]; then
+        echo "Found nirmata-agent.service. Testing Nirmata agent."
+        test_agent
+    else
+        warn "Nirmata agent service for Docker is not found!"
+    fi
+elif command -v podman &>/dev/null && systemctl is-active podman &>/dev/null; then
+    echo "Podman is running. Checking for Nirmata Podman agent..."
+    if [ -e /etc/systemd/system/nirmata-agent-podman.service ]; then
+        echo "Found nirmata-agent-podman.service. Testing Nirmata Podman agent."
+        test_agent
+    else
+        warn "Nirmata agent service for Podman is not found!"
+    fi
 else
-    if type kubelet &>/dev/null;then
-        #test for k8 service
-        echo Found kubelet binary running local kubernetes tests
-        echo -e "\e[33mNote if you plan on running the Nirmata agent remove this kubelet!!! \nIf this kubelet is running it will prevent Nirmata's kubelet from running. \e[0m"
-        if ! systemctl is-active kubelet &>/dev/null;then
+    echo "Neither Docker nor Podman is running. Checking for kubelet..."
+    if type kubelet &>/dev/null; then
+        # Test for Kubernetes service
+        echo "Found kubelet binary. Running local Kubernetes tests."
+        echo -e "\e[33mNote: If you plan on running the Nirmata agent, remove this kubelet! \nIf this kubelet is running, it will prevent Nirmata's kubelet from running.\e[0m"
+
+        if ! systemctl is-active kubelet &>/dev/null; then
             error 'Kubelet is not active?'
         else
-            good Kublet is active
+            good "Kubelet is active"
         fi
-        if ! systemctl is-enabled kubelet &>/dev/null;then
-            if [[ $fix_issues -eq 0 ]];then
+
+        if ! systemctl is-enabled kubelet &>/dev/null; then
+            if [[ $fix_issues -eq 0 ]]; then
                 echo "Applying the following fixes"
-                echo systectl enable kubelet
-                systectl enable kubelet
+                echo_cmd sudo systemctl enable kubelet
             else
                 error 'Kubelet is not set to run at boot?'
             fi
         else
-          good Kublet is enabled at boot
+            good "Kubelet is enabled at boot"
         fi
+
     else
-        error No Kubelet or Nirmata Agent!!!
+        error "No Kubelet or Nirmata Agent found!"
     fi
-    if [ ! -e /opt/cni/bin/bridge ];then
-        warn '/opt/cni/bin/bridge not found is your CNI installed?'
+
+    if [ ! -e /opt/cni/bin/bridge ]; then
+        warn '/opt/cni/bin/bridge not found. Is your CNI installed?'
     fi
 fi
+
 
 
     # Test if containerd configuration directory exists
