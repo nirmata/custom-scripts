@@ -1361,22 +1361,52 @@ base_cluster_local(){
 
 # Test nirmata agent for nirmata built clusters
 test_agent(){
-echo Test Nirmata Agent
-if systemctl is-active nirmata-agent &>/dev/null ; then
-    good Nirmata Agent is running
+echo "Testing Nirmata Agent"
+
+if command -v docker &>/dev/null && systemctl is-active docker &>/dev/null; then
+    # If Docker is running, check for nirmata-agent
+    if systemctl is-active nirmata-agent &>/dev/null; then
+        good "Nirmata Agent (Docker) is running"
+    else
+        error "Nirmata Agent (Docker) is not running"
+    fi
+
+    if systemctl is-enabled nirmata-agent &>/dev/null; then
+        good "Nirmata Agent (Docker) is enabled at boot"
+    else
+        error "Nirmata Agent (Docker) is not enabled at boot"
+    fi
+
+    if docker ps | grep -q -e nirmata/nirmata-host-agent; then
+        good "Found nirmata-host-agent (Docker)"
+    else
+        error "nirmata-host-agent (Docker) is not running!"
+    fi
+
+elif command -v podman &>/dev/null && systemctl is-active podman &>/dev/null; then
+    # If Podman is running, check for nirmata-agent-podman
+    if systemctl is-active nirmata-agent-podman &>/dev/null; then
+        good "Nirmata Agent (Podman) is running"
+    else
+        error "Nirmata Agent (Podman) is not running"
+    fi
+
+    if systemctl is-enabled nirmata-agent-podman &>/dev/null; then
+        good "Nirmata Agent (Podman) is enabled at boot"
+    else
+        error "Nirmata Agent (Podman) is not enabled at boot"
+    fi
+
+    if podman ps | grep -q -e nirmata/nirmata-host-agent; then
+        good "Found nirmata-host-agent (Podman)"
+    else
+        error "nirmata-host-agent (Podman) is not running!"
+    fi
+
 else
-    error Nirmata Agent is not running
+    error "Neither Docker nor Podman is running or installed"
 fi
-if systemctl is-enabled nirmata-agent &>/dev/null ; then
-    good Nirmata Agent is enabled at boot
-else
-    error Nirmata Agent is not enabled at boot
-fi
-if docker ps |grep -q -e nirmata/nirmata-host-agent;then
-    good Found nirmata-host-agent
-else
-    error nirmata-host-agent is not running!
-fi
+
 # if docker ps |grep -q -e "hyperkube proxy";then
 #     good Found hyperkube proxy
 # else
