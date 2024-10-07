@@ -1,23 +1,34 @@
 #!/bin/bash
-# Nirmata cleanup script for Podman
+# Nirmata cleanup script
 
 # Functions to display status
 good() { echo -e "\e[32m[GOOD]\e[0m $1"; }
 warn() { echo -e "\e[33m[WARN]\e[0m $1"; }
 
 # Stop and remove any running containers
-sudo podman stop $(sudo podman ps | grep "flannel" | gawk '{print $1}')
-sudo podman stop $(sudo podman ps | grep "nirmata" | gawk '{print $1}')
-sudo podman stop $(sudo podman ps | grep "kube" | gawk '{print $1}')
-sudo podman rm $(sudo podman ps -a | grep "Exited" | gawk '{print $1}')
+sudo docker stop $(sudo docker ps | grep “flannel” | gawk '{print $1}')
+sudo docker stop $(sudo docker ps | grep "nirmata" | gawk '{print $1}')
+sudo docker stop $(sudo docker ps | grep "kube" | gawk '{print $1}')
+sudo docker rm  $(sudo docker ps -a | grep "Exit" |gawk '{print $1}')
 
-# Remove any CNI plugins
+sudo podman stop $(sudo podman ps -a | grep "flannel" | gawk '{print $1}')
+sudo podman stop $(sudo podman ps -a | grep "nirmata" | gawk '{print $1}')
+sudo podman stop $(sudo podman ps -a | grep "kube" | gawk '{print $1}')
+sudo podman rm $(sudo podman ps -a | grep -E "Exited|Created" | awk '{print $1}')
+
+
+# Remove any cni plugins
 sudo rm -rf /etc/cni/*
 sudo rm -rf /opt/cni/*
 
 # Clear IP Tables
 sudo iptables --flush
 sudo iptables -tnat --flush
+
+# Restart Docker
+sudo systemctl stop docker
+sudo systemctl start docker
+sudo docker ps
 
 # Restart Podman
 sudo systemctl stop podman
@@ -41,6 +52,7 @@ sudo rm -rf /opt/nirmata
 sudo systemctl stop nirmata-agent.service
 sudo systemctl disable nirmata-agent.service
 sudo rm -rf /etc/systemd/system/nirmata-agent.service
+
 
 # Function to check if all containerd tasks and containers are removed
 check_containerd_cleanup() {
@@ -89,8 +101,8 @@ else
     good "NAT IP tables are cleared."
 fi
 
-# 3. Verify Podman is running without specific containers
-if sudo podman ps | grep -q "flannel\|nirmata\|kube"; then
+# 3. Verify Docker is running without specific containers
+if sudo docker ps | grep -q "flannel\|nirmata\|kube"; then
     warn "Some containers related to flannel, nirmata, or kube are still running."
 else
     good "No flannel, nirmata, or kube containers are running."
