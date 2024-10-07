@@ -843,13 +843,26 @@ check_proxy_in_file() {
   fi
 }
 
-# Check Docker service configuration
-echo "Checking Docker proxy configuration..."
-check_proxy_in_file "/etc/systemd/system/docker.service.d/http-proxy.conf"
+if command -v docker &>/dev/null; then
+    CONTAINER_RUNTIME="docker"
+    echo "[INFO] Docker is installed. Proceeding with Docker checks."
 
-# Check Podman service configuration
-echo "Checking Podman proxy configuration..."
-check_proxy_in_file "/etc/systemd/system/podman.service.d/http-proxy.conf"
+    # Check Docker service configuration
+    echo "Checking Docker proxy configuration..."
+    check_proxy_in_file "/etc/systemd/system/docker.service.d/http-proxy.conf"
+
+elif command -v podman &>/dev/null; then
+    CONTAINER_RUNTIME="podman"
+    echo "[INFO] Podman is installed. Proceeding with Podman checks."
+
+    # Check Podman service configuration
+    echo "Checking Podman proxy configuration..."
+    check_proxy_in_file "/etc/systemd/system/podman.service.d/http-proxy.conf"
+
+else
+    echo "[ERROR] Neither Docker nor Podman is installed. Exiting."
+    exit 1
+fi
 
 # Check containerd service configuration
 echo "Checking containerd proxy configuration..."
@@ -1017,90 +1030,129 @@ check_port 68 udp
 
 # Protocol 4 (IP-in-IP)
 check_protocol 4
-#test for docker
-if ! systemctl is-active docker &>/dev/null ; then
-    warn 'Docker service is not active? Maybe you are using some other CRI??'
-    if [[ $fix_issues -eq 0 ]];then
-     echo_cmd sudo systemctl start docker
-    fi
-  else
-    good Docker is running
-fi
 
-if ! systemctl is-enabled docker &>/dev/null;then
-    warn 'Docker service is starting at boot. Maybe you are using some other CRI??'
-    if [[ $fix_issues -eq 0 ]];then
-     echo_cmd sudo systemctl enable docker
-    fi
-  else
-    good Docker is starting at boot
-fi
+# Container runtime service check script
 
-# Test for Podman
-if ! systemctl is-active podman &>/dev/null ; then
-    warn 'Podman service is not active? Maybe you are using some other CRI??'
-    if [[ $fix_issues -eq 0 ]]; then
-        echo_cmd sudo systemctl start podman
-    fi
-else
-    good "Podman is running"
-fi
+# Determine if Docker or Podman is installed
+if command -v docker &>/dev/null; then
+    CONTAINER_RUNTIME="docker"
+    echo "[INFO] Docker is installed. Proceeding with Docker checks."
 
-if ! systemctl is-enabled podman &>/dev/null; then
-    warn 'Podman service is not starting at boot. Maybe you are using some other CRI??'
-    if [[ $fix_issues -eq 0 ]]; then
-        echo_cmd sudo systemctl enable podman
-    fi
-else
-    good "Podman is starting at boot"
-fi
-
-
-
-if docker info 2>/dev/null|grep mountpoint;then
-  warn 'Docker does not have its own mountpoint'
-  # What is the fix for this??? How does this happen I've never seen it.
-fi
-
-# Is the version of docker locked/held if not we are going to suffer death by upgrade.
-if [ ! -e /usr/bin/docker ];then
-  error no /usr/bin/docker
-fi
-if [ -e /usr/bin/dpkg ];then
-  dockerpkg=$(dpkg -S /usr/bin/docker |awk '{print $1}' |sed 's/:$//')
-  if [[ $dockerpkg =~ docker.io ]];then
-    if  sudo apt-mark showhold |grep -q docker.io; then
-      good docker.io package held
-    else
-       warn docker.io package is not held
-       if [[ $fix_issues -eq 0 ]];then
-         echo_cmd sudo apt-mark hold docker.io
-       fi
-    fi
-  else
-    if [[ $dockerpkg =~ docker-ce ]];then
-      if  sudo apt-mark showhold |grep -q docker-ce; then
-        good docker-ce package held
-      else
-        warn docker-ce package is not held
-        if [[ $fix_issues -eq 0 ]];then
-          echo_cmd sudo apt-mark hold docker-ce
+    # Test for Docker service
+    if ! systemctl is-active docker &>/dev/null ; then
+        warn 'Docker service is not active. Maybe you are using some other CRI?'
+        if [[ $fix_issues -eq 0 ]]; then
+            echo_cmd sudo systemctl start docker
         fi
-      fi
-    fi
-  fi
-else
-  if [ -e /usr/bin/rpm ];then
-    if yum versionlock list |grep -q docker-ce;then
-      good docker versionlocked
     else
-      warn docker is not versionlocked
-      if [[ $fix_issues -eq 0 ]];then
-        echo_cmd "yum install 'dnf-command(versionlock)'"
-      fi
+        good "Docker is running"
     fi
-  fi
+
+    if ! systemctl is-enabled docker &>/dev/null; then
+        warn 'Docker service is not starting at boot. Maybe you are using some other CRI?'
+        if [[ $fix_issues -eq 0 ]]; then
+            echo_cmd sudo systemctl enable docker
+        fi
+    else
+        good "Docker is starting at boot"
+    fi
+
+    # Check for Docker mount point
+    if docker info 2>/dev/null | grep -q mountpoint; then
+        warn 'Docker does not have its own mountpoint'
+        # Add any additional fix or handling steps if needed.
+        # For example, you could add instructions for reconfiguring the storage driver.
+    fi
+
+elif command -v podman &>/dev/null; then
+    CONTAINER_RUNTIME="podman"
+    echo "[INFO] Podman is installed. Proceeding with Podman checks."
+
+    # Test for Podman service
+    if ! systemctl is-active podman &>/dev/null ; then
+        warn 'Podman service is not active. Maybe you are using some other CRI?'
+        if [[ $fix_issues -eq 0 ]]; then
+            echo_cmd sudo systemctl start podman
+        fi
+    else
+        good "Podman is running"
+    fi
+
+    if ! systemctl is-enabled podman &>/dev/null; then
+        warn 'Podman service is not starting at boot. Maybe you are using some other CRI?'
+        if [[ $fix_issues -eq 0 ]]; then
+            echo_cmd sudo systemctl enable podman
+        fi
+    else
+        good "Podman is starting at boot"
+    fi
+
+    # Verify Podman configuration for runtime
+    echo "[INFO] Checking Podman runtime configuration..."
+    if grep -q 'runtime = "runc"' /usr/share/containers/containers.conf; then
+        good "Podman is configured to use 'runc' as the runtime."
+    else
+        warn "Podman is not configured to use 'runc' as the runtime. Please update the configuration."
+        # Optional fix: add a line to update the configuration if needed
+        # echo_cmd sudo sed -i 's/runtime = .*/runtime = "runc"/' /usr/share/containers/containers.conf
+    fi
+
+    # Ensure containernetworking-plugins is installed
+    echo "[INFO] Checking if 'containernetworking-plugins' is installed..."
+    if ! dnf list installed containernetworking-plugins &>/dev/null; then
+        warn "'containernetworking-plugins' is not installed."
+        if [[ $fix_issues -eq 0 ]]; then
+            echo_cmd sudo dnf install containernetworking-plugins -y
+        fi
+    else
+        good "'containernetworking-plugins' is already installed."
+    fi
+
+else
+    echo "[ERROR] Neither Docker nor Podman is installed. Exiting."
+    exit 1
 fi
+
+
+# # Is the version of docker locked/held if not we are going to suffer death by upgrade.
+# if [ ! -e /usr/bin/docker ];then
+#   error no /usr/bin/docker
+# fi
+# if [ -e /usr/bin/dpkg ];then
+#   dockerpkg=$(dpkg -S /usr/bin/docker |awk '{print $1}' |sed 's/:$//')
+#   if [[ $dockerpkg =~ docker.io ]];then
+#     if  sudo apt-mark showhold |grep -q docker.io; then
+#       good docker.io package held
+#     else
+#        warn docker.io package is not held
+#        if [[ $fix_issues -eq 0 ]];then
+#          echo_cmd sudo apt-mark hold docker.io
+#        fi
+#     fi
+#   else
+#     if [[ $dockerpkg =~ docker-ce ]];then
+#       if  sudo apt-mark showhold |grep -q docker-ce; then
+#         good docker-ce package held
+#       else
+#         warn docker-ce package is not held
+#         if [[ $fix_issues -eq 0 ]];then
+#           echo_cmd sudo apt-mark hold docker-ce
+#         fi
+#       fi
+#     fi
+#   fi
+# else
+#   if [ -e /usr/bin/rpm ];then
+#     if yum versionlock list |grep -q docker-ce;then
+#       good docker versionlocked
+#     else
+#       warn docker is not versionlocked
+#       if [[ $fix_issues -eq 0 ]];then
+#         echo_cmd "yum install 'dnf-command(versionlock)'"
+#       fi
+#     fi
+#   fi
+# fi
 
 
 # tests for containerd
