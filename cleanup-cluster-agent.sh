@@ -11,6 +11,12 @@ sudo docker stop $(sudo docker ps | grep "nirmata" | gawk '{print $1}')
 sudo docker stop $(sudo docker ps | grep "kube" | gawk '{print $1}')
 sudo docker rm  $(sudo docker ps -a | grep "Exit" |gawk '{print $1}')
 
+sudo podman stop $(sudo podman ps -a | grep "flannel" | gawk '{print $1}')
+sudo podman stop $(sudo podman ps -a | grep "nirmata" | gawk '{print $1}')
+sudo podman stop $(sudo podman ps -a | grep "kube" | gawk '{print $1}')
+sudo podman rm $(sudo podman ps -a | grep -E "Exited|Created" | awk '{print $1}')
+
+
 # Remove any cni plugins
 sudo rm -rf /etc/cni/*
 sudo rm -rf /opt/cni/*
@@ -23,6 +29,11 @@ sudo iptables -tnat --flush
 sudo systemctl stop docker
 sudo systemctl start docker
 sudo docker ps
+
+# Restart Podman
+sudo systemctl stop podman
+sudo systemctl start podman
+sudo podman ps
 
 # Deletes the CNI interface
 sudo ifconfig cni0 down
