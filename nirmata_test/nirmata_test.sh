@@ -1377,7 +1377,7 @@ if command -v docker &>/dev/null && systemctl is-active docker &>/dev/null; then
         error "Nirmata Agent (Docker) is not enabled at boot"
     fi
 
-    if docker ps | grep -q -e nirmata/nirmata-host-agent; then
+    if docker ps | grep nirmata/nirmata-host-agent; then
         good "Found nirmata-host-agent (Docker)"
     else
         error "nirmata-host-agent (Docker) is not running!"
@@ -1397,7 +1397,7 @@ elif command -v podman &>/dev/null && systemctl is-active podman &>/dev/null; th
         error "Nirmata Agent (Podman) is not enabled at boot"
     fi
 
-    if podman ps | grep -q -e nirmata/nirmata-host-agent; then
+    if podman ps | grep nirmata/nirmata-host-agent; then
         good "Found nirmata-host-agent (Podman)"
     else
         error "nirmata-host-agent (Podman) is not running!"
