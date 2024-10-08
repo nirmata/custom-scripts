@@ -876,63 +876,65 @@ echo "Proxy configuration check completed."
 
 
 # Kubelet generally won't run if swap is enabled.
-if [[ $(swapon -s | wc -l) -gt 1 ]] ;  then
-    if [[ $fix_issues -eq 0 ]];then
-        warn "Found swap enabled"
+fix_issues=0  # Set to 1 if you want to apply fixes, otherwise keep it as 0
+
+# Check if swap is enabled
+if [[ $(swapon -s | wc -l) -gt 1 ]]; then
+    error "Swap is currently enabled!"
+    
+    if [[ $fix_issues -eq 0 ]]; then
+        echo "Please disable swap to avoid issues. You can run the following commands:"
+        echo "1. Disable swap: swapoff -a"
+        echo "2. Remove swap entry from /etc/fstab: sed -i '/[[:space:]]*swap[[:space:]]*swap/d' /etc/fstab"
+    else
+        warn "Found swap enabled, disabling it now..."
         echo_cmd swapoff -a
         echo_cmd sed -i '/[[:space:]]*swap[[:space:]]*swap/d' /etc/fstab
-    else
-        error "Found swap enabled!"
-        echo Consider if you are having issues:
-        echo "sed -i '/[[:space:]]*swap[[:space:]]*swap/d' /etc/fstab"
-	echo "swapoff -a"
     fi
-  else
-    good No swap found
+else
+    good "No swap found."
 fi
 
 
-# It's possible to run docker with selinux, but we don't support that.
-if type sestatus &>/dev/null;then
-    if sestatus | grep "Current mode:" |grep -e enforcing ;then
-        warn 'SELinux enabled'
-	sestatus
-        if [[ $fix_issues -eq 0 ]];then
-            echo "Applying the following fixes"
-            echo_cmd sed -i s/^SELINUX=.*/SELINUX=permissive/ /etc/selinux/config
-            echo_cmd setenforce 0
-        else
-            echo Consider the following changes to disabled SELinux if you are having issues:
+# Check SELinux status
+if type sestatus &>/dev/null; then
+    if sestatus | grep "Current mode:" | grep -q -e enforcing; then
+        error "SELinux is currently enabled and enforcing!"
+        sestatus
+        
+        if [[ $fix_issues -eq 0 ]]; then
+            echo "Please consider the following changes to disable SELinux if you are having issues:"
             echo '  sed -i s/^SELINUX=.*/SELINUX=permissive/ /etc/selinux/config'
             echo '  setenforce 0'
+        else
+            warn "Applying fixes to set SELinux to permissive mode..."
+            echo_cmd sed -i 's/^SELINUX=.*/SELINUX=permissive/' /etc/selinux/config
+            echo_cmd setenforce 0
         fi
     else
-      good Selinux not enforcing
+        good "SELinux is not enforcing."
     fi
 else
-    #Assuming debian/ubuntu don't do selinux if no sestatus binary
-    if [ -e /etc/os-release ]  &&  ! grep -q -i -e debian -e ubuntu /etc/os-release;then
-        warn 'sestatus binary not found assuming SELinux is disabled.'
-    else
-      good "No Selinux found"
-    fi
+    warn "sestatus command not found. Unable to check SELinux status."
 fi
 
-#test kernel ip forward settings
-if grep -q 0 /proc/sys/net/ipv4/ip_forward;then
-        if [[ $fix_issues -eq 0 ]];then
-            warn net.ipv4.ip_forward is set to 0
-            echo "Applying the following fixes"
-            echo_cmd sysctl -w net.ipv4.ip_forward=1
-            echo_cmd echo net.ipv4.ip_forward=1 >> /etc/sysctl.conf
-        else
-            error net.ipv4.ip_forward is set to 0
-            echo Consider the following changes:
-            echo '  sysctl -w net.ipv4.ip_forward=1'
-            echo '  echo net.ipv4.ip_forward=1 >> /etc/sysctl.conf'
-        fi
+# Test kernel IP forward settings
+if grep -q 0 /proc/sys/net/ipv4/ip_forward; then
+    error "net.ipv4.ip_forward is set to 0"
+    
+    if [[ $fix_issues -eq 0 ]]; then
+        warn "Applying the following fixes..."
+        # Update the command to enable IP forwarding
+        echo_cmd sysctl -w net.ipv4.ip_forward=1
+        # Update to persist the change in /etc/sysctl.conf
+        echo_cmd echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf
+    else
+        echo "Consider the following changes:"
+        echo '  sysctl -w net.ipv4.ip_forward=1'  # Suggest command for enabling IP forwarding
+        echo '  echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf'  # Suggest command to persist the change
+    fi
 else
-    good ip_forward enabled
+    good "IP forwarding is enabled."
 fi
 
 
@@ -1156,7 +1158,7 @@ if command -v docker &>/dev/null; then
 
     # Test for Docker service
     if ! systemctl is-active docker &>/dev/null ; then
-        warn 'Docker service is not active. Maybe you are using some other CRI?'
+        error 'Docker service is not active. Maybe you are using some other CRI?'
         if [[ $fix_issues -eq 0 ]]; then
             echo_cmd sudo systemctl start docker
         fi
@@ -1165,7 +1167,7 @@ if command -v docker &>/dev/null; then
     fi
 
     if ! systemctl is-enabled docker &>/dev/null; then
-        warn 'Docker service is not starting at boot. Maybe you are using some other CRI?'
+        error 'Docker service is not starting at boot. Maybe you are using some other CRI?'
         if [[ $fix_issues -eq 0 ]]; then
             echo_cmd sudo systemctl enable docker
         fi
@@ -1186,7 +1188,7 @@ elif command -v podman &>/dev/null; then
 
     # Test for Podman service
     if ! systemctl is-active podman &>/dev/null ; then
-        warn 'Podman service is not active. Maybe you are using some other CRI?'
+        error 'Podman service is not active. Maybe you are using some other CRI?'
         if [[ $fix_issues -eq 0 ]]; then
             echo_cmd sudo systemctl start podman
         fi
@@ -1195,7 +1197,7 @@ elif command -v podman &>/dev/null; then
     fi
 
     if ! systemctl is-enabled podman &>/dev/null; then
-        warn 'Podman service is not starting at boot. Maybe you are using some other CRI?'
+        error 'Podman service is not starting at boot. Maybe you are using some other CRI?'
         if [[ $fix_issues -eq 0 ]]; then
             echo_cmd sudo systemctl enable podman
         fi
@@ -1208,7 +1210,7 @@ elif command -v podman &>/dev/null; then
     if grep -q 'runtime = "runc"' /usr/share/containers/containers.conf; then
         good "Podman is configured to use 'runc' as the runtime."
     else
-        warn "Podman is not configured to use 'runc' as the runtime. Please update the configuration."
+        error "Podman is not configured to use 'runc' as the runtime. Please update the configuration."
         # Optional fix: add a line to update the configuration if needed
         # echo_cmd sudo sed -i 's/runtime = .*/runtime = "runc"/' /usr/share/containers/containers.conf
     fi
@@ -1216,7 +1218,7 @@ elif command -v podman &>/dev/null; then
     # Ensure containernetworking-plugins is installed
     echo "[INFO] Checking if 'containernetworking-plugins' is installed..."
     if ! dnf list installed containernetworking-plugins &>/dev/null; then
-        warn "'containernetworking-plugins' is not installed."
+        error "'containernetworking-plugins' is not installed."
         if [[ $fix_issues -eq 0 ]]; then
             echo_cmd sudo dnf install containernetworking-plugins -y
         fi
@@ -1273,17 +1275,17 @@ fi
 
 # tests for containerd
 if ! systemctl is-active containerd &>/dev/null ; then
-    warn 'Containerd service is not active? Maybe you are using some other CRI??'
+    error 'Containerd service is not active? Maybe you are using some other CRI??'
 else
     containerdVersion=$(containerd --version | awk '{print $3}')
     if [[ $containerdVersion < 1.6.19 ]] ;then
-        warn 'Install containerd version 1.6.19 or later'
+        error 'Install containerd version 1.6.19 or later'
     else
         CONFIG_FILE="/etc/containerd/config.toml"
         if grep -q 'SystemdCgroup = true' "$CONFIG_FILE"; then
             good Containerd is active
         else
-            warn "SystemdCgroup is not set to true in $CONFIG_FILE"
+            error "SystemdCgroup is not set to true in $CONFIG_FILE"
         fi
         
     fi
@@ -1299,7 +1301,7 @@ check_kubernetes_processes() {
   for process in "${processes[@]}"; do
     if pgrep -f "$process" > /dev/null; then
       processes_found=true
-      warn "Process '$process' is running. Verify it by running 'ps -ef | grep $process' and remove it using 'kill -9 $process'."
+      error "Process '$process' is running. Verify it by running 'ps -ef | grep $process' and remove it using 'kill -9 $process'."
     fi
   done
   
@@ -1316,14 +1318,14 @@ echo "Process check completed."
 
 # tests for systemd-resolved
 if ! systemctl is-active systemd-resolved &>/dev/null ; then
-    warn 'systemd-resolved is not running!'
+    error 'systemd-resolved is not running!'
 else
     good systemd-resolved is active
 fi
 
 # tests for firewalld
 if systemctl is-active firewalld &>/dev/null ; then
-    warn 'firewalld is running, please turn it off using `sudo systemctl disable --now firewalld`'
+    error 'firewalld is running, please turn it off using `sudo systemctl disable --now firewalld`'
 else
     good firewalld is inactive
 fi
@@ -1331,7 +1333,7 @@ fi
 #Customers often have time issues, which can cause cert issues.  Ex:cert is in future.
 if type chronyc &>/dev/null;then
   if chronyc activity |grep -q "^0 sources online";then
-    warn "Chrony found, but no ntp sources reported!"
+    error "Chrony found, but no ntp sources reported!"
   else
     good Found Chrony with valid ntp sources.
   fi
@@ -1340,10 +1342,10 @@ else
     if ntpq -c rv |grep -q 'leap=00,'; then
       good Found ntp and we appear to be syncing.
     else
-      warn "Found ntp client, but it appears to not be synced"
+      error "Found ntp client, but it appears to not be synced"
     fi
   else
-    warn "No ntp client found!!"
+    error "No ntp client found!!"
   fi
 fi
 
@@ -1393,7 +1395,7 @@ else
     fi
 
     if [ ! -e /opt/cni/bin/bridge ]; then
-        warn '/opt/cni/bin/bridge not found. Is your CNI installed?'
+        error '/opt/cni/bin/bridge not found. Is your CNI installed?'
     fi
 fi
 
@@ -1403,35 +1405,35 @@ fi
     if [ -d '/etc/containerd' ]; then
         good "/etc/containerd is correctly mounted."
     else
-        warn "/etc/containerd is not mounted."
+        error "/etc/containerd is not mounted."
     fi
 
     # Test if containerd data directory exists (commonly used)
     if [ -d '/var/lib/containerd' ]; then
         good "/var/lib/containerd exists."
     else
-        warn "/var/lib/containerd does not exist."
+        error "/var/lib/containerd does not exist."
     fi
 
     # Test if Docker directory exists
     if [ -d '/var/lib/docker' ]; then
         good "/var/lib/docker exists."
     else
-        warn "/var/lib/docker does not exist."
+        error "/var/lib/docker does not exist."
     fi
 
     # Test if Podman configuration directory exists
     if [ -d '/etc/containers' ]; then
         good "/etc/containers is correctly mounted."
     else
-        warn "/etc/containers is not mounted."
+        error "/etc/containers is not mounted."
     fi
 
     # Test if Podman data directory exists
     if [ -d '/var/lib/containers' ]; then
         good "/var/lib/containers exists."
     else
-        warn "/var/lib/containers does not exist."
+        error "/var/lib/containers does not exist."
     fi
 
 
@@ -1444,7 +1446,7 @@ base_cluster_local(){
     # if [ $? -eq 0 ]; then
     #     good "Access to the repository is present."
     # else
-    #     warn "Cannot access the repository!"
+    #     error "Cannot access the repository!"
     # fi
 
     # Test for zk, kafka and mongodb directory exists
@@ -1454,7 +1456,7 @@ base_cluster_local(){
         if [ -d $dir ]; then
             good "$dir is correctly mounted."
         else
-            warn "$dir is not mounted."
+            error "$dir is not mounted."
         fi
     done
 
