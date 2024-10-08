@@ -1300,7 +1300,7 @@ check_kubernetes_processes() {
   for process in "${processes[@]}"; do
     if pgrep -f "$process" > /dev/null; then
       processes_found=true
-      error "Process '$process' is running. Verify it by running 'ps -ef | grep $process' and remove it using 'kill -9 $process'. Make Sure to cleanup using cluster-cleanup script before creating the Nirmata Managed Cluster cluster"
+      error "Process '$process' is running. Verify it by running 'ps -ef | grep $process' and remove it using 'kill -9 $process'. Make Sure to cleanup the k8s processes using cluster-cleanup script before creating the Nirmata Managed Cluster cluster"
     fi
   done
   
@@ -1432,7 +1432,7 @@ fi
     if [ -d '/var/lib/containers' ]; then
         good "/var/lib/containers exists."
     else
-        error "/var/lib/containers does not exist."
+        error "/var/lib/containers does not exist. Please mount it with the help of respective team"
     fi
 
 
