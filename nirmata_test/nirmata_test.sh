@@ -839,7 +839,7 @@ check_proxy_in_file() {
       warn "Missing proxy configurations in $file_path: ${missing_params[*]}"
     fi
   else
-    error "$file_path does not exist"
+    error "$file_path does not exist. Please follow the pre-req document to add the proxy details"
   fi
 }
 
@@ -946,7 +946,7 @@ if yum repolist enabled | grep -q "docker-ce-stable"; then
     else
         error "Docker CE repository is enabled, but packages cannot be downloaded. 
         Action Required: Verify if the repository URL is whitelisted in your network/proxy settings. 
-        Ensure that the node has internet access or the necessary permissions to access the repository."
+        Ensure that the node has access or the necessary permissions to access the repository."
     fi
 else
     error "Docker CE repository is not enabled or not added correctly. 
@@ -964,7 +964,7 @@ if yum repolist enabled | grep -q "kubernetes"; then
     else
         error "Kubernetes repository is enabled, but packages cannot be downloaded. 
         Action Required: Verify if the repository URL is whitelisted in your network/proxy settings. 
-        Ensure that the node has internet access or the necessary permissions to access the repository."
+        Ensure that the node has access or the necessary permissions to access the repository."
     fi
 else
     error "Kubernetes repository is not enabled or not added correctly. Please whitelist if this node is for Base Cluster otherwise Ignore it, Not required for the Nirmata Managed Cluster. 
@@ -1300,7 +1300,7 @@ check_kubernetes_processes() {
   for process in "${processes[@]}"; do
     if pgrep -f "$process" > /dev/null; then
       processes_found=true
-      error "Process '$process' is running. Verify it by running 'ps -ef | grep $process' and remove it using 'kill -9 $process'."
+      error "Process '$process' is running. Verify it by running 'ps -ef | grep $process' and remove it using 'kill -9 $process'. Make Sure to cleanup using cluster-cleanup script before creating the Nirmata Managed Cluster cluster"
     fi
   done
   
@@ -1404,7 +1404,7 @@ fi
     if [ -d '/etc/containerd' ]; then
         good "/etc/containerd is correctly mounted."
     else
-        error "/etc/containerd is not mounted."
+        error "/etc/containerd is not mounted. Please mount it with the help of respective team."
     fi
 
     # Test if containerd data directory exists (commonly used)
@@ -1425,7 +1425,7 @@ fi
     if [ -d '/etc/containers' ]; then
         good "/etc/containers is correctly mounted."
     else
-        error "/etc/containers is not mounted."
+        error "/etc/containers is not mounted. Please mount it with the help of respective team."
     fi
 
     # Test if Podman data directory exists
@@ -1455,7 +1455,7 @@ base_cluster_local(){
         if [ -d $dir ]; then
             good "$dir is correctly mounted."
         else
-            error "$dir is not mounted."
+            error "$dir is not mounted. Please mount it with the help of respective team."
         fi
     done
 
