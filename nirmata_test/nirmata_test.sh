@@ -876,64 +876,111 @@ echo "Proxy configuration check completed."
 
 
 # Kubelet generally won't run if swap is enabled.
-if [[ $(swapon -s | wc -l) -gt 1 ]] ;  then
-    if [[ $fix_issues -eq 0 ]];then
-        warn "Found swap enabled"
+fix_issues=0  # Set to 1 if you want to apply fixes, otherwise keep it as 0
+
+# Check if swap is enabled
+if [[ $(swapon -s | wc -l) -gt 1 ]]; then
+    error "Swap is currently enabled!"
+    
+    if [[ $fix_issues -eq 0 ]]; then
+        echo "Please disable swap to avoid issues. You can run the following commands:"
+        echo "1. Disable swap: swapoff -a"
+        echo "2. Remove swap entry from /etc/fstab: sed -i '/[[:space:]]*swap[[:space:]]*swap/d' /etc/fstab"
+    else
+        warn "Found swap enabled, disabling it now..."
         echo_cmd swapoff -a
         echo_cmd sed -i '/[[:space:]]*swap[[:space:]]*swap/d' /etc/fstab
-    else
-        error "Found swap enabled!"
-        echo Consider if you are having issues:
-        echo "sed -i '/[[:space:]]*swap[[:space:]]*swap/d' /etc/fstab"
-	echo "swapoff -a"
     fi
-  else
-    good No swap found
+else
+    good "No swap found."
 fi
 
 
-# It's possible to run docker with selinux, but we don't support that.
-if type sestatus &>/dev/null;then
-    if sestatus | grep "Current mode:" |grep -e enforcing ;then
-        warn 'SELinux enabled'
-	sestatus
-        if [[ $fix_issues -eq 0 ]];then
-            echo "Applying the following fixes"
-            echo_cmd sed -i s/^SELINUX=.*/SELINUX=permissive/ /etc/selinux/config
-            echo_cmd setenforce 0
-        else
-            echo Consider the following changes to disabled SELinux if you are having issues:
+# Check SELinux status
+if type sestatus &>/dev/null; then
+    if sestatus | grep "Current mode:" | grep -q -e enforcing; then
+        error "SELinux is currently enabled and enforcing!"
+        sestatus
+        
+        if [[ $fix_issues -eq 0 ]]; then
+            echo "Please consider the following changes to disable SELinux if you are having issues:"
             echo '  sed -i s/^SELINUX=.*/SELINUX=permissive/ /etc/selinux/config'
             echo '  setenforce 0'
+        else
+            warn "Applying fixes to set SELinux to permissive mode..."
+            echo_cmd sed -i 's/^SELINUX=.*/SELINUX=permissive/' /etc/selinux/config
+            echo_cmd setenforce 0
         fi
     else
-      good Selinux not enforcing
+        good "SELinux is not enforcing."
     fi
 else
-    #Assuming debian/ubuntu don't do selinux if no sestatus binary
-    if [ -e /etc/os-release ]  &&  ! grep -q -i -e debian -e ubuntu /etc/os-release;then
-        warn 'sestatus binary not found assuming SELinux is disabled.'
-    else
-      good "No Selinux found"
-    fi
+    warn "sestatus command not found. Unable to check SELinux status."
 fi
 
-#test kernel ip forward settings
-if grep -q 0 /proc/sys/net/ipv4/ip_forward;then
-        if [[ $fix_issues -eq 0 ]];then
-            warn net.ipv4.ip_forward is set to 0
-            echo "Applying the following fixes"
-            echo_cmd sysctl -w net.ipv4.ip_forward=1
-            echo_cmd echo net.ipv4.ip_forward=1 >> /etc/sysctl.conf
-        else
-            error net.ipv4.ip_forward is set to 0
-            echo Consider the following changes:
-            echo '  sysctl -w net.ipv4.ip_forward=1'
-            echo '  echo net.ipv4.ip_forward=1 >> /etc/sysctl.conf'
-        fi
+# Test kernel IP forward settings
+if grep -q 0 /proc/sys/net/ipv4/ip_forward; then
+    error "net.ipv4.ip_forward is set to 0"
+    
+    if [[ $fix_issues -eq 0 ]]; then
+        warn "Applying the following fixes..."
+        # Update the command to enable IP forwarding
+        echo_cmd sysctl -w net.ipv4.ip_forward=1
+        # Update to persist the change in /etc/sysctl.conf
+        echo_cmd echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf
+    else
+        echo "Consider the following changes:"
+        echo '  sysctl -w net.ipv4.ip_forward=1'  # Suggest command for enabling IP forwarding
+        echo '  echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf'  # Suggest command to persist the change
+    fi
 else
-    good ip_forward enabled
+    good "IP forwarding is enabled."
 fi
+
+
+# Verify if the Docker CE repository is enabled
+if yum repolist enabled | grep -q "docker-ce-stable"; then
+    # Attempt to list packages from the Docker CE repository to verify access
+    if sudo yum --disablerepo="*" --enablerepo="docker-ce-stable" list available docker-ce > /dev/null 2>&1; then
+        good "Docker CE repository is accessible, and packages can be downloaded."
+    else
+        error "Docker CE repository is enabled, but packages cannot be downloaded. 
+        Action Required: Verify if the repository URL is whitelisted in your network/proxy settings. 
+        Ensure that the node has internet access or the necessary permissions to access the repository."
+    fi
+else
+    error "Docker CE repository is not enabled or not added correctly. 
+    Action Required: Re-add the repository using:
+    sudo yum-config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo
+    Ensure that the repository is whitelisted in your network/proxy settings."
+fi
+
+
+# Verify if the Kubernetes repository is enabled
+if yum repolist enabled | grep -q "kubernetes"; then
+    # Attempt to list packages from the Kubernetes repository to verify access
+    if sudo yum --disablerepo="*" --enablerepo="kubernetes" list available kubectl > /dev/null 2>&1; then
+        good "Kubernetes repository is accessible, and packages can be downloaded."
+    else
+        error "Kubernetes repository is enabled, but packages cannot be downloaded. 
+        Action Required: Verify if the repository URL is whitelisted in your network/proxy settings. 
+        Ensure that the node has internet access or the necessary permissions to access the repository."
+    fi
+else
+    error "Kubernetes repository is not enabled or not added correctly. Please whitelist if this node is for Base Cluster otherwise Ignore it, Not required for the Nirmata Managed Cluster. 
+    Action Required: Re-add the repository using:
+    cat <<EOF | sudo tee /etc/yum.repos.d/kubernetes.repo
+    [kubernetes]
+    name=Kubernetes
+    baseurl=https://pkgs.k8s.io/core:/stable:/v1.29/rpm/
+    enabled=1
+    gpgcheck=1
+    gpgkey=https://pkgs.k8s.io/core:/stable:/v1.29/rpm/repodata/repomd.xml.key
+    exclude=kubelet kubeadm kubectl cri-tools kubernetes-cni
+    EOF
+    Ensure that the repository is whitelisted in your network/proxy settings."
+fi
+
 
 #check for br netfilter
 if [ ! -e /proc/sys/net/bridge/bridge-nf-call-iptables ];then
@@ -954,20 +1001,19 @@ else
 fi
 if grep -q 0 /proc/sys/net/bridge/bridge-nf-call-iptables;then
     if [[ $fix_issues -eq 0 ]];then
-        warn "Bridge netfilter disabled!!"
+        error "Bridge netfilter disabled!!"
         echo "Applying the following fixes"
         echo_cmd sysctl -w net.bridge.bridge-nf-call-iptables=1
         echo_cmd echo net.bridge.bridge-nf-call-iptables=1 >> /etc/sysctl.conf
     else
-        error "Bridge netfilter disabled!!"
         echo Consider the following changes:
         echo '  sysctl -w net.bridge.bridge-nf-call-iptables=1'
+
         echo '  echo net.bridge.bridge-nf-call-iptables=1 >> /etc/sysctl.conf'
     fi
 else
     good bridge-nf-call-iptables enabled
 fi
-
 
 #TODO check for proxy settings, how, what, why
 # Do we really need this has anyone complained?
@@ -985,54 +1031,125 @@ check_port() {
     fi
 }
 
-# Function to check if protocol 4 (IP-in-IP for Calico) is enabled in iptables
-check_protocol() {
-    local protocol=$1
-    if sudo iptables -C INPUT -p "$protocol" -j ACCEPT &>/dev/null ||
-       sudo iptables -C FORWARD -p "$protocol" -j ACCEPT &>/dev/null; then
-        good "Protocol $protocol is enabled in iptables."
+# Initialize flags
+error_found=false
+port_error_found=false
+
+# Function to check if a port is enabled in iptables
+check_port() {
+    local port=$1
+    local protocol=$2
+    if sudo iptables -C INPUT -p "$protocol" --dport "$port" -j ACCEPT &>/dev/null ||
+       sudo iptables -C FORWARD -p "$protocol" --dport "$port" -j ACCEPT &>/dev/null; then
+        good "Port $port/$protocol is enabled in iptables."
     else
-        warn "Protocol $protocol is NOT enabled in iptables."
+        port_error_found=true  # Set the port error flag
     fi
 }
 
 # Verify specific ports
-check_port 2379 tcp
-check_port 2380 tcp
-check_port 6443 tcp
-check_port 8090 tcp
-check_port 8091 tcp
-check_port 8472 udp
-check_port 10250 tcp
-check_port 10251 tcp
-check_port 10252 tcp
-check_port 10255 tcp
-check_port 10256 tcp
-check_port 10257 tcp
-check_port 10259 tcp
-check_port 179 tcp
-check_port 9099 tcp
-check_port 4789 udp
+declare -a ports=(2379 8285 2380 6443 8090 8091 8472 10250 10251 10252 10255 10256 10257 10259 179 9099 4789)
+
+for port in "${ports[@]}"; do
+    check_port "$port" "tcp"
+done
 
 # Additional cluster ports (incoming and outgoing)
 check_port 53 udp    # DNS
+check_port 8472 udp    # DNS
 check_port 443 tcp   # HTTPS
 check_port 30000:32768 tcp   # NodePort range
 
-# Uncomment if you want to check the full range individually
-# for port in {30000..32768}; do
-#     check_port $port tcp
-# done
+# Check if any errors were found
+if $port_error_found; then
+    # Check if all inbound and outbound traffic is allowed
+    allowed_inbound=$(sudo iptables -L INPUT -n | grep -E 'ACCEPT' | wc -l)
+    allowed_outbound=$(sudo iptables -L OUTPUT -n | grep -E 'ACCEPT' | wc -l)
 
-# DHCP ports (67/udp for server and 68/udp for client)
-check_port 67 udp
-check_port 68 udp
+    # If all inbound and outbound are allowed
+    if [[ $allowed_inbound -gt 0 && $allowed_outbound -gt 0 ]]; then
+        good "All inbound and outbound traffic is allowed in iptables. All looks good, no action required."
+    else
+        error "Please reach out to the UNIX team to enable the required ports in iptables."
+    fi
+else
+    good "All required ports are enabled in iptables. All looks good, no action required."
+fi
 
-# Protocol 4 (IP-in-IP)
-check_protocol 4
+# Function to check if a port is open via telnet
+check_telnet() {
+    local host=$1
+    local port=$2
+    local component=$3
+    local timeout=5
+    local output
+
+    # Use telnet to check port and capture output
+    output=$( (echo > /dev/tcp/$host/$port) 2>&1 )
+    if [ $? -eq 0 ]; then
+        good "Connection to $host:$port ($component) successful via telnet."
+    else
+        if echo "$output" | grep -q "timed out"; then
+            if [[ "$port" == "8472" || "$port" == "8285" ]]; then
+                error "Connection to $host:$port ($component) timed out. Please ensure this port is allowed if this is the base cluster node. Output: $output"
+            else
+                error "Connection to $host:$port ($component) timed out. Output: $output"
+            fi
+        elif echo "$output" | grep -q "Connection refused"; then
+            good "Connection to $host:$port ($component) refused. Output: $output"
+        else
+            warn "Connection to $host:$port ($component) failed. Output: $output"
+        fi
+    fi
+}
+
+# Detect node IP
+CURRENT_IP=$(hostname -I | awk '{print $1}')
+
+# Performing checks on the same node
+echo "Current IP: $CURRENT_IP"
+echo "Performing checks on the node with IP $CURRENT_IP..."
+
+# Ports and components for the node
+declare -A PORTS=(
+    [6443]="Kubernetes API Server"
+    [2379]="etcd"
+    [10259]="KubeScheduler"
+    [10257]="Controller-Manager"
+    [10250]="kubelet"
+    [10256]="kube-proxy"
+    [179]="BGP"
+    [9099]="Custom Service"
+    [4789]="VXLAN"
+)
+
+for port in "${!PORTS[@]}"; do
+    component=${PORTS[$port]}
+    echo "Checking $component on port $port from $CURRENT_IP..."
+    check_telnet "$CURRENT_IP" "$port" "$component"
+done
+
+# Check for Flannel specific ports
+FLANNEL_PORTS=(
+    [8472]="Flannel VXLAN"
+    [8285]="Flannel API"
+)
+
+for port in "${!FLANNEL_PORTS[@]}"; do
+    component=${FLANNEL_PORTS[$port]}
+    echo "Checking $component on port $port from $CURRENT_IP..."
+    check_telnet "$CURRENT_IP" "$port" "$component"
+done
+
+# Random NodePort check (30000-32767)
+RANDOM_PORT=$((30000 + RANDOM % 2768))
+echo "Checking random NodePort $RANDOM_PORT on $CURRENT_IP..."
+check_telnet "$CURRENT_IP" "$RANDOM_PORT" "NodePort"
+
+# Final output
+echo "Port checks completed for node with IP $CURRENT_IP."
 
 # Container runtime service check script
-
 # Determine if Docker or Podman is installed
 if command -v docker &>/dev/null; then
     CONTAINER_RUNTIME="docker"
@@ -1040,7 +1157,7 @@ if command -v docker &>/dev/null; then
 
     # Test for Docker service
     if ! systemctl is-active docker &>/dev/null ; then
-        warn 'Docker service is not active. Maybe you are using some other CRI?'
+        error 'Docker service is not active. Maybe you are using some other CRI?'
         if [[ $fix_issues -eq 0 ]]; then
             echo_cmd sudo systemctl start docker
         fi
@@ -1049,7 +1166,7 @@ if command -v docker &>/dev/null; then
     fi
 
     if ! systemctl is-enabled docker &>/dev/null; then
-        warn 'Docker service is not starting at boot. Maybe you are using some other CRI?'
+        error 'Docker service is not starting at boot. Maybe you are using some other CRI?'
         if [[ $fix_issues -eq 0 ]]; then
             echo_cmd sudo systemctl enable docker
         fi
@@ -1070,7 +1187,7 @@ elif command -v podman &>/dev/null; then
 
     # Test for Podman service
     if ! systemctl is-active podman &>/dev/null ; then
-        warn 'Podman service is not active. Maybe you are using some other CRI?'
+        error 'Podman service is not active. Maybe you are using some other CRI?'
         if [[ $fix_issues -eq 0 ]]; then
             echo_cmd sudo systemctl start podman
         fi
@@ -1079,7 +1196,7 @@ elif command -v podman &>/dev/null; then
     fi
 
     if ! systemctl is-enabled podman &>/dev/null; then
-        warn 'Podman service is not starting at boot. Maybe you are using some other CRI?'
+        error 'Podman service is not starting at boot. Maybe you are using some other CRI?'
         if [[ $fix_issues -eq 0 ]]; then
             echo_cmd sudo systemctl enable podman
         fi
@@ -1092,7 +1209,7 @@ elif command -v podman &>/dev/null; then
     if grep -q 'runtime = "runc"' /usr/share/containers/containers.conf; then
         good "Podman is configured to use 'runc' as the runtime."
     else
-        warn "Podman is not configured to use 'runc' as the runtime. Please update the configuration."
+        error "Podman is not configured to use 'runc' as the runtime. Please update the configuration."
         # Optional fix: add a line to update the configuration if needed
         # echo_cmd sudo sed -i 's/runtime = .*/runtime = "runc"/' /usr/share/containers/containers.conf
     fi
@@ -1100,7 +1217,7 @@ elif command -v podman &>/dev/null; then
     # Ensure containernetworking-plugins is installed
     echo "[INFO] Checking if 'containernetworking-plugins' is installed..."
     if ! dnf list installed containernetworking-plugins &>/dev/null; then
-        warn "'containernetworking-plugins' is not installed."
+        error "'containernetworking-plugins' is not installed."
         if [[ $fix_issues -eq 0 ]]; then
             echo_cmd sudo dnf install containernetworking-plugins -y
         fi
@@ -1157,17 +1274,17 @@ fi
 
 # tests for containerd
 if ! systemctl is-active containerd &>/dev/null ; then
-    warn 'Containerd service is not active? Maybe you are using some other CRI??'
+    error 'Containerd service is not active? Maybe you are using some other CRI??'
 else
     containerdVersion=$(containerd --version | awk '{print $3}')
     if [[ $containerdVersion < 1.6.19 ]] ;then
-        warn 'Install containerd version 1.6.19 or later'
+        error 'Install containerd version 1.6.19 or later'
     else
         CONFIG_FILE="/etc/containerd/config.toml"
         if grep -q 'SystemdCgroup = true' "$CONFIG_FILE"; then
             good Containerd is active
         else
-            warn "SystemdCgroup is not set to true in $CONFIG_FILE"
+            error "SystemdCgroup is not set to true in $CONFIG_FILE"
         fi
         
     fi
@@ -1183,7 +1300,7 @@ check_kubernetes_processes() {
   for process in "${processes[@]}"; do
     if pgrep -f "$process" > /dev/null; then
       processes_found=true
-      warn "Process '$process' is running. Verify it by running 'ps -ef | grep $process' and remove it using 'kill -9 $process'."
+      error "Process '$process' is running. Verify it by running 'ps -ef | grep $process' and remove it using 'kill -9 $process'."
     fi
   done
   
@@ -1200,14 +1317,14 @@ echo "Process check completed."
 
 # tests for systemd-resolved
 if ! systemctl is-active systemd-resolved &>/dev/null ; then
-    warn 'systemd-resolved is not running!'
+    error 'systemd-resolved is not running!'
 else
     good systemd-resolved is active
 fi
 
 # tests for firewalld
 if systemctl is-active firewalld &>/dev/null ; then
-    warn 'firewalld is running, please turn it off using `sudo systemctl disable --now firewalld`'
+    error 'firewalld is running, please turn it off using `sudo systemctl disable --now firewalld`'
 else
     good firewalld is inactive
 fi
@@ -1215,7 +1332,7 @@ fi
 #Customers often have time issues, which can cause cert issues.  Ex:cert is in future.
 if type chronyc &>/dev/null;then
   if chronyc activity |grep -q "^0 sources online";then
-    warn "Chrony found, but no ntp sources reported!"
+    error "Chrony found, but no ntp sources reported!"
   else
     good Found Chrony with valid ntp sources.
   fi
@@ -1224,10 +1341,10 @@ else
     if ntpq -c rv |grep -q 'leap=00,'; then
       good Found ntp and we appear to be syncing.
     else
-      warn "Found ntp client, but it appears to not be synced"
+      error "Found ntp client, but it appears to not be synced"
     fi
   else
-    warn "No ntp client found!!"
+    error "No ntp client found!!"
   fi
 fi
 
@@ -1277,7 +1394,7 @@ else
     fi
 
     if [ ! -e /opt/cni/bin/bridge ]; then
-        warn '/opt/cni/bin/bridge not found. Is your CNI installed?'
+        error '/opt/cni/bin/bridge not found. Is your CNI installed?'
     fi
 fi
 
@@ -1287,35 +1404,35 @@ fi
     if [ -d '/etc/containerd' ]; then
         good "/etc/containerd is correctly mounted."
     else
-        warn "/etc/containerd is not mounted."
+        error "/etc/containerd is not mounted."
     fi
 
     # Test if containerd data directory exists (commonly used)
     if [ -d '/var/lib/containerd' ]; then
         good "/var/lib/containerd exists."
     else
-        warn "/var/lib/containerd does not exist."
+        error "/var/lib/containerd does not exist."
     fi
 
     # Test if Docker directory exists
     if [ -d '/var/lib/docker' ]; then
         good "/var/lib/docker exists."
     else
-        warn "/var/lib/docker does not exist."
+        error "/var/lib/docker does not exist."
     fi
 
     # Test if Podman configuration directory exists
     if [ -d '/etc/containers' ]; then
         good "/etc/containers is correctly mounted."
     else
-        warn "/etc/containers is not mounted."
+        error "/etc/containers is not mounted."
     fi
 
     # Test if Podman data directory exists
     if [ -d '/var/lib/containers' ]; then
         good "/var/lib/containers exists."
     else
-        warn "/var/lib/containers does not exist."
+        error "/var/lib/containers does not exist."
     fi
 
 
@@ -1328,7 +1445,7 @@ base_cluster_local(){
     # if [ $? -eq 0 ]; then
     #     good "Access to the repository is present."
     # else
-    #     warn "Cannot access the repository!"
+    #     error "Cannot access the repository!"
     # fi
 
     # Test for zk, kafka and mongodb directory exists
@@ -1338,7 +1455,7 @@ base_cluster_local(){
         if [ -d $dir ]; then
             good "$dir is correctly mounted."
         else
-            warn "$dir is not mounted."
+            error "$dir is not mounted."
         fi
     done
 
