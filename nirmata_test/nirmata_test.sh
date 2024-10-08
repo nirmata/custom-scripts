@@ -935,6 +935,51 @@ else
     good ip_forward enabled
 fi
 
+
+# Verify if the Docker CE repository is enabled
+if yum repolist enabled | grep -q "docker-ce-stable"; then
+    # Attempt to list packages from the Docker CE repository to verify access
+    if sudo yum --disablerepo="*" --enablerepo="docker-ce-stable" list available docker-ce > /dev/null 2>&1; then
+        good "Docker CE repository is accessible, and packages can be downloaded."
+    else
+        error "Docker CE repository is enabled, but packages cannot be downloaded. 
+        Action Required: Verify if the repository URL is whitelisted in your network/proxy settings. 
+        Ensure that the node has internet access or the necessary permissions to access the repository."
+    fi
+else
+    error "Docker CE repository is not enabled or not added correctly. 
+    Action Required: Re-add the repository using:
+    sudo yum-config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo
+    Ensure that the repository is whitelisted in your network/proxy settings."
+fi
+
+
+# Verify if the Kubernetes repository is enabled
+if yum repolist enabled | grep -q "kubernetes"; then
+    # Attempt to list packages from the Kubernetes repository to verify access
+    if sudo yum --disablerepo="*" --enablerepo="kubernetes" list available kubectl > /dev/null 2>&1; then
+        good "Kubernetes repository is accessible, and packages can be downloaded."
+    else
+        error "Kubernetes repository is enabled, but packages cannot be downloaded. 
+        Action Required: Verify if the repository URL is whitelisted in your network/proxy settings. 
+        Ensure that the node has internet access or the necessary permissions to access the repository."
+    fi
+else
+    error "Kubernetes repository is not enabled or not added correctly. Please whitelist if this node is for Base Cluster otherwise Ignore it, Not required for the Nirmata Managed Cluster. 
+    Action Required: Re-add the repository using:
+    cat <<EOF | sudo tee /etc/yum.repos.d/kubernetes.repo
+    [kubernetes]
+    name=Kubernetes
+    baseurl=https://pkgs.k8s.io/core:/stable:/v1.29/rpm/
+    enabled=1
+    gpgcheck=1
+    gpgkey=https://pkgs.k8s.io/core:/stable:/v1.29/rpm/repodata/repomd.xml.key
+    exclude=kubelet kubeadm kubectl cri-tools kubernetes-cni
+    EOF
+    Ensure that the repository is whitelisted in your network/proxy settings."
+fi
+
+
 #check for br netfilter
 if [ ! -e /proc/sys/net/bridge/bridge-nf-call-iptables ];then
     if [[ $fix_issues -eq 0 ]];then
@@ -985,54 +1030,125 @@ check_port() {
     fi
 }
 
-# Function to check if protocol 4 (IP-in-IP for Calico) is enabled in iptables
-check_protocol() {
-    local protocol=$1
-    if sudo iptables -C INPUT -p "$protocol" -j ACCEPT &>/dev/null ||
-       sudo iptables -C FORWARD -p "$protocol" -j ACCEPT &>/dev/null; then
-        good "Protocol $protocol is enabled in iptables."
+# Initialize flags
+error_found=false
+port_error_found=false
+
+# Function to check if a port is enabled in iptables
+check_port() {
+    local port=$1
+    local protocol=$2
+    if sudo iptables -C INPUT -p "$protocol" --dport "$port" -j ACCEPT &>/dev/null ||
+       sudo iptables -C FORWARD -p "$protocol" --dport "$port" -j ACCEPT &>/dev/null; then
+        good "Port $port/$protocol is enabled in iptables."
     else
-        warn "Protocol $protocol is NOT enabled in iptables."
+        port_error_found=true  # Set the port error flag
     fi
 }
 
 # Verify specific ports
-check_port 2379 tcp
-check_port 2380 tcp
-check_port 6443 tcp
-check_port 8090 tcp
-check_port 8091 tcp
-check_port 8472 udp
-check_port 10250 tcp
-check_port 10251 tcp
-check_port 10252 tcp
-check_port 10255 tcp
-check_port 10256 tcp
-check_port 10257 tcp
-check_port 10259 tcp
-check_port 179 tcp
-check_port 9099 tcp
-check_port 4789 udp
+declare -a ports=(2379 8285 2380 6443 8090 8091 8472 10250 10251 10252 10255 10256 10257 10259 179 9099 4789)
+
+for port in "${ports[@]}"; do
+    check_port "$port" "tcp"
+done
 
 # Additional cluster ports (incoming and outgoing)
 check_port 53 udp    # DNS
+check_port 8472 udp    # DNS
 check_port 443 tcp   # HTTPS
 check_port 30000:32768 tcp   # NodePort range
 
-# Uncomment if you want to check the full range individually
-# for port in {30000..32768}; do
-#     check_port $port tcp
-# done
+# Check if any errors were found
+if $port_error_found; then
+    # Check if all inbound and outbound traffic is allowed
+    allowed_inbound=$(sudo iptables -L INPUT -n | grep -E 'ACCEPT' | wc -l)
+    allowed_outbound=$(sudo iptables -L OUTPUT -n | grep -E 'ACCEPT' | wc -l)
 
-# DHCP ports (67/udp for server and 68/udp for client)
-check_port 67 udp
-check_port 68 udp
+    # If all inbound and outbound are allowed
+    if [[ $allowed_inbound -gt 0 && $allowed_outbound -gt 0 ]]; then
+        good "All inbound and outbound traffic is allowed in iptables. All looks good, no action required."
+    else
+        error "Please reach out to the UNIX team to enable the required ports in iptables."
+    fi
+else
+    good "All required ports are enabled in iptables. All looks good, no action required."
+fi
 
-# Protocol 4 (IP-in-IP)
-check_protocol 4
+# Function to check if a port is open via telnet
+check_telnet() {
+    local host=$1
+    local port=$2
+    local component=$3
+    local timeout=5
+    local output
+
+    # Use telnet to check port and capture output
+    output=$( (echo > /dev/tcp/$host/$port) 2>&1 )
+    if [ $? -eq 0 ]; then
+        good "Connection to $host:$port ($component) successful via telnet."
+    else
+        if echo "$output" | grep -q "timed out"; then
+            if [[ "$port" == "8472" || "$port" == "8285" ]]; then
+                error "Connection to $host:$port ($component) timed out. Please ensure this port is allowed if this is the base cluster node. Output: $output"
+            else
+                error "Connection to $host:$port ($component) timed out. Output: $output"
+            fi
+        elif echo "$output" | grep -q "Connection refused"; then
+            good "Connection to $host:$port ($component) refused. Output: $output"
+        else
+            warn "Connection to $host:$port ($component) failed. Output: $output"
+        fi
+    fi
+}
+
+# Detect node IP
+CURRENT_IP=$(hostname -I | awk '{print $1}')
+
+# Performing checks on the same node
+echo "Current IP: $CURRENT_IP"
+echo "Performing checks on the node with IP $CURRENT_IP..."
+
+# Ports and components for the node
+declare -A PORTS=(
+    [6443]="Kubernetes API Server"
+    [2379]="etcd"
+    [10259]="KubeScheduler"
+    [10257]="Controller-Manager"
+    [10250]="kubelet"
+    [10256]="kube-proxy"
+    [179]="BGP"
+    [9099]="Custom Service"
+    [4789]="VXLAN"
+)
+
+for port in "${!PORTS[@]}"; do
+    component=${PORTS[$port]}
+    echo "Checking $component on port $port from $CURRENT_IP..."
+    check_telnet "$CURRENT_IP" "$port" "$component"
+done
+
+# Check for Flannel specific ports
+FLANNEL_PORTS=(
+    [8472]="Flannel VXLAN"
+    [8285]="Flannel API"
+)
+
+for port in "${!FLANNEL_PORTS[@]}"; do
+    component=${FLANNEL_PORTS[$port]}
+    echo "Checking $component on port $port from $CURRENT_IP..."
+    check_telnet "$CURRENT_IP" "$port" "$component"
+done
+
+# Random NodePort check (30000-32767)
+RANDOM_PORT=$((30000 + RANDOM % 2768))
+echo "Checking random NodePort $RANDOM_PORT on $CURRENT_IP..."
+check_telnet "$CURRENT_IP" "$RANDOM_PORT" "NodePort"
+
+# Final output
+echo "Port checks completed for node with IP $CURRENT_IP."
 
 # Container runtime service check script
-
 # Determine if Docker or Podman is installed
 if command -v docker &>/dev/null; then
     CONTAINER_RUNTIME="docker"
