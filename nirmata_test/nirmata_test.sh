@@ -1432,7 +1432,7 @@ fi
     if [ -d '/var/lib/containers' ]; then
         good "/var/lib/containers exists."
     else
-        error "/var/lib/containers does not exist. Please mount it with the help of respective team"
+        error "/var/lib/containers does not exist. Please mount it with the help of respective team."
     fi
 
 
