@@ -1001,20 +1001,19 @@ else
 fi
 if grep -q 0 /proc/sys/net/bridge/bridge-nf-call-iptables;then
     if [[ $fix_issues -eq 0 ]];then
-        warn "Bridge netfilter disabled!!"
+        error "Bridge netfilter disabled!!"
         echo "Applying the following fixes"
         echo_cmd sysctl -w net.bridge.bridge-nf-call-iptables=1
         echo_cmd echo net.bridge.bridge-nf-call-iptables=1 >> /etc/sysctl.conf
     else
-        error "Bridge netfilter disabled!!"
         echo Consider the following changes:
         echo '  sysctl -w net.bridge.bridge-nf-call-iptables=1'
+
         echo '  echo net.bridge.bridge-nf-call-iptables=1 >> /etc/sysctl.conf'
     fi
 else
     good bridge-nf-call-iptables enabled
 fi
-
 
 #TODO check for proxy settings, how, what, why
 # Do we really need this has anyone complained?
