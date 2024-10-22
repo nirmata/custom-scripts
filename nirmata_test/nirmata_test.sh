@@ -820,6 +820,57 @@ spec:
 local_test(){
 echo "Starting Local Tests"
 
+
+    # Ask if running on a Nirmata managed cluster
+    read -p "Are you running the script on a Nirmata managed cluster? (yes/no): " nirmata_response
+    if [[ "$nirmata_response" == "yes" ]]; then
+        echo "Continuing with Nirmata managed cluster tests..."
+        # Add your logic for Nirmata managed cluster tests here
+
+    elif [[ "$nirmata_response" == "no" ]]; then
+        # Ask if running on the base cluster node
+        read -p "Are you running on the base cluster node? (yes/no): " base_cluster_response
+        if [[ "$base_cluster_response" == "yes" ]]; then
+            # Ask for load balancer DNS
+            read -p "Please provide the load balancer DNS: " lb_dns
+            echo "Checking bidirectional connectivity to $lb_dns on port 443..."
+            check_connectivity "$lb_dns"
+        else
+            echo "You are not on a Nirmata managed cluster or base cluster node. Exiting."
+            exit 1
+        fi
+    else
+        echo "Invalid response. Please answer 'yes' or 'no'."
+        exit 1
+    fi
+}
+
+# Function to check bidirectional connectivity to the load balancer DNS on port 443
+check_connectivity() {
+    local lb_dns=$1
+
+    # Check connectivity using curl
+    if curl -s --connect-timeout 5 "https://$lb_dns:443" > /dev/null; then
+        echo "Successfully connected to $lb_dns on port 443."
+    else
+        echo "Failed to connect to $lb_dns on port 443."
+    fi
+
+    # Check if the port is open using nc (netcat)
+    if nc -z -v -w5 "$lb_dns" 443; then
+        echo "Port 443 is open on $lb_dns."
+    else
+        echo "Port 443 is not open on $lb_dns."
+    fi
+}
+
+# Check if the script is run with the --local argument
+if [[ "$1" == "--local" ]]; then
+    local_test
+else
+    echo "Usage: ./nirmata_test --local"
+fi
+
 # Function to check if all proxy configurations are present in a given file
 check_proxy_in_file() {
   local file_path=$1
