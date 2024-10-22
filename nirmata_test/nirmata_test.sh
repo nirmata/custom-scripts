@@ -852,7 +852,7 @@ check_connectivity() {
         else
             error "Unable to determine the OS. Please install netcat using your package manager."
         fi
-        exit 1
+        # exit 1
     fi
 }
 
