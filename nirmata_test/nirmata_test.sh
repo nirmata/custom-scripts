@@ -816,9 +816,79 @@ spec:
 
 }
 
+# Function to check bidirectional connectivity to the load balancer DNS on port 443
+check_connectivity() {
+    local lb_dns=$1
+
+    # Check connectivity using curl
+    if curl -s --connect-timeout 5 "https://$lb_dns:443" > /dev/null; then
+        good "Successfully connected to $lb_dns on port 443."
+    else
+        error "Failed to connect to $lb_dns on port 443."
+    fi
+
+    # Check if the port is open using nc (netcat)
+    if command -v nc &>/dev/null; then
+        if nc -z -v -w5 "$lb_dns" 443; then
+            good "Port 443 is open on $lb_dns."
+        else
+            error "Port 443 is not open on $lb_dns."
+        fi
+    else
+        error "'nc' (netcat) is not installed. Please install it using the appropriate command for your OS."
+        if [[ -f /etc/os-release ]]; then
+            . /etc/os-release
+            case $ID in
+                ubuntu|debian)
+                    echo "sudo apt update && sudo apt install netcat"
+                    ;;
+                centos|rhel|fedora)
+                    echo "sudo yum install nc"  # Using yum instead of dnf for broader compatibility
+                    ;;
+                *)
+                    echo "Please install netcat using your package manager."
+                    ;;
+            esac
+        else
+            error "Unable to determine the OS. Please install netcat using your package manager."
+        fi
+        exit 1
+    fi
+}
+
+
 # test if your local system can run k8
-local_test(){
-echo "Starting Local Tests"
+#!/bin/bash
+# Function to check bidirectional connectivity using nc (netcat)
+#!/bin/bash
+# Function to perform local tests
+local_test() {
+    echo "Starting Local Tests"
+
+    # Ask if running on a Nirmata managed cluster
+    read -p "Are you running the script on a Nirmata managed cluster? (yes/no): " nirmata_response
+    if [[ "$nirmata_response" == "yes" ]]; then
+        echo "Continuing with Nirmata managed cluster tests..."
+        # Add your Nirmata managed cluster logic here
+        echo "Running Nirmata specific tests..."
+        # You can add the logic for Nirmata-specific tests here
+
+    elif [[ "$nirmata_response" == "no" ]]; then
+        # Since it's not a Nirmata managed cluster, ask about the base cluster
+        read -p "Are you running on the base cluster node? (yes/no): " base_cluster_response
+        if [[ "$base_cluster_response" == "yes" ]]; then
+            # Ask for load balancer DNS
+            read -p "Please provide the load balancer DNS: " lb_dns
+            echo "Checking bidirectional connectivity to $lb_dns on port 443..."
+            check_connectivity "$lb_dns"
+        else
+            error "You are not on a Nirmata managed cluster or base cluster node. Exiting."
+            exit 1
+        fi
+    else
+        error "Invalid response. Please answer 'yes' or 'no'."
+        exit 1
+    fi
 
 # Function to check if all proxy configurations are present in a given file
 check_proxy_in_file() {
@@ -1434,8 +1504,6 @@ fi
     else
         error "/var/lib/containers does not exist. Please mount it with the help of respective team."
     fi
-
-
 }
 
 base_cluster_local(){
