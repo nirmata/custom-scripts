@@ -1485,10 +1485,10 @@ fi
     fi
 
     # Test if Docker directory exists
-    if [ -d '/var/lib/docker' ]; then
-        good "/var/lib/docker exists."
+    if [ -d '/var/lib/docker/containerd' ]; then
+        good "/var/lib/docker/containerd exists."
     else
-        error "/var/lib/docker does not exist."
+        error "/var/lib/docker/containerd does not exist."
     fi
 
     # Test if Podman configuration directory exists
