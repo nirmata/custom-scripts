@@ -11,7 +11,6 @@ To install the `twistcli` login to the Prisma cloud account with your credential
 &nbsp;
 
 ## Usage: 
-&nbsp;
 
 ```sh
 
