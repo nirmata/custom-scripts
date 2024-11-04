@@ -1,4 +1,4 @@
-# This repository consists of a script to scan the images for any vulnerabilities using Prisma cloud. Before running the script, ensure `twistcli` is installed on your machine as per your OS. 
+## This repository consists of a script to scan the images for any vulnerabilities using Prisma cloud. Before running the script, ensure `twistcli` is installed on your machine as per your OS. 
 
 ## How to install `twistcli`
 
