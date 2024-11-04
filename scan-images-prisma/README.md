@@ -10,7 +10,9 @@ To install the `twistcli` login to the Prisma cloud account with your credential
 
 &nbsp;
 
-## usage: 
+## Usage: 
+
+&nbsp;
 
 ```sh
 
@@ -42,3 +44,4 @@ Compliance threshold check results: PASS
 Twistcli scan completed successfully for image ghcr.io/nirmata/background-controller:v1.12.5-n4k.nirmata.6.
 
 ```
+&nbsp;
