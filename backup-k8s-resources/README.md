@@ -1,3 +1,5 @@
+This script backups all the namespace level and clusterwide k8s resources of your cluster in the current directory. 
+
 ### Usage:
 
 ```sh
