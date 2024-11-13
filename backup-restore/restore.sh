@@ -38,6 +38,15 @@ backupfolder=$1
 
 # Get the list of all databases
 mongodbs="Activity-nirmata Availability-cluster-hc-nirmata Availability-env-app-nirmata Catalog-nirmata Cluster-nirmata Config-nirmata Environments-nirmata Users-nirmata TimeSeries-nirmata"
+#mongodbs="Activity-nirmata"
+#mongodbs="Availability-cluster-hc-nirmata"
+#mongodbs="Availability-env-app-nirmata"
+#mongodbs="Catalog-nirmata"
+#mongodbs="Cluster-nirmata"
+#mongodbs="Config-nirmata"
+#mongodbs="Environments-nirmata"
+#mongodbs="Users-nirmata"
+#mongodbs="TimeSeries-nirmata"
 
 # For each database
 for db in $mongodbs; do
