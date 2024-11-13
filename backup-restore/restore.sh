@@ -39,6 +39,16 @@ backupfolder=$1
 
 # Get the list of all databases
 mongodbs="Activity-nirmata Availability-cluster-hc-nirmata Availability-env-app-nirmata Catalog-nirmata Cluster-nirmata Config-nirmata Environments-nirmata Users-nirmata TimeSeries-nirmata"
+#mongodbs="Activity-nirmata"
+#mongodbs="Availability-cluster-hc-nirmata"
+#mongodbs="Availability-env-app-nirmata"
+#mongodbs="Catalog-nirmata"
+#mongodbs="Cluster-nirmata"
+#mongodbs="Config-nirmata"
+#mongodbs="Environments-nirmata"
+#mongodbs="Users-nirmata"
+#mongodbs="TimeSeries-nirmata"
+
 
 # For each database
 for db in $mongodbs; do
@@ -48,7 +58,7 @@ for db in $mongodbs; do
 
   # Connect to the MongoDB pod and restore the database
 
-  kubectl -n nirmata exec $MONGO_MASTER -c mongodb -- sh -c "mongorestore --drop --gzip --db=${db} --archive=/tmp/${db}.gz --noIndexRestore -v"
+  kubectl -n nirmata exec $MONGO_MASTER -c mongodb -- sh -c "mongorestore --drop --gzip --db=${db} --archive=/tmp/${db}.gz --noIndexRestore --batchSize=10 -v"
 
   # Check the status of the restore
   if [ $? -eq 0 ]; then
