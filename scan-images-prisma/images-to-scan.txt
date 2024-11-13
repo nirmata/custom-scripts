@@ -1,0 +1,7 @@
+ghcr.io/nirmata/background-controller:v1.12.5-n4k.nirmata.6
+ghcr.io/nirmata/cleanup-controller:v1.12.5-n4k.nirmata.6
+ghcr.io/nirmata/kyverno:v1.12.5-n4k.nirmata.6
+ghcr.io/nirmata/kyvernopre:v1.12.5-n4k.nirmata.6
+ghcr.io/nirmata/reports-controller:v1.12.5-n4k.nirmata.6
+reg.nirmata.io/nirmata/kubectl:1.31.1
+ghcr.io/nirmata/nirmata-kyverno-operator:v0.4.1
