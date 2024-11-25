@@ -1118,7 +1118,7 @@ check_port() {
 }
 
 # Verify specific ports
-declare -a ports=(2379 8285 2380 6443 8090 8091 8472 10250 10251 10252 10255 10256 10257 10259 179 9099 4789)
+declare -a ports=(2379 2380 6443 8090 8091 8472 10250 10251 10252 10255 10256 10257 10259 179 9099 4789)
 
 for port in "${ports[@]}"; do
     check_port "$port" "tcp"
