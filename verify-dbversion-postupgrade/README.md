@@ -6,6 +6,6 @@ DBVersion for all the mongodb databases need to be verified post Nirmata PE upgr
 ### Usage: 
 
 ```sh
-./script.sh <namespace>
+./verify-dbversion-post-peupgrade.sh <namespace>
 
 ```
