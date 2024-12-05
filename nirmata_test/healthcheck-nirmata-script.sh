@@ -628,7 +628,7 @@ if [[ $email -eq 0 ]];then
                     echo $BODY |sendEmail -t "$email_to" -f "$FROM" -u \""$SUBJECT"\" -s "$SMTP_SERVER" -xu "$EMAIL_USER" -xp "$EMAIL_PASSWD" "$EMAIL_OPTS"
                 fi
             else
-                docker run $sendemail $email_to $FROM "$SUBJECT" "${BODY}" $SMTP_SERVER "$EMAIL_USER" "$EMAIL_PASSWD" "$EMAIL_OPTS"
+                podman run $sendemail $email_to $FROM "$SUBJECT" "${BODY}" $SMTP_SERVER "$EMAIL_USER" "$EMAIL_PASSWD" "$EMAIL_OPTS"
             fi
             #If they named it something else don't delete
             rm -f /tmp/k8_test.$$
