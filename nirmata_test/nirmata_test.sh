@@ -413,7 +413,7 @@ for mongo in $mongos; do
     mongo_df=$(kubectl -n $mongo_ns exec $mongo $mongo_container -- df /data/db | awk '{ print $5; }' | tail -1 | sed s/%//)
     [[ $mongo_df -gt $df_free_mongo ]] && (error "Found MongoDB volume at ${mongo_df}% usage on $mongo" ; \
         kubectl -n $mongo_ns exec $mongo $mongo_container -- du --all -h /data/db/ |grep '^[0-9,.]*G' )
-    kubectl -n $mongo_ns exec $mongo $mongo_container -- du  -h /data/db/WiredTigerLAS.wt |grep '[0-9]G' && \
+    kubectl -n $mongo_ns exec $mongo $mongo_container -- du  -h /data/db/WiredTigerHS.wt |grep '[0-9]G' && \
         warn "WiredTiger lookaside file is very large on $mongo. Consider increasing Mongodb memory."
     mongo_num=$((mongo_num + 1));
     mongo_stateStr=$(kubectl -n $mongo_ns exec $mongo $mongo_container -- sh -c 'echo "rs.status()" |mongo' 2>&1 |grep stateStr)
