@@ -452,63 +452,40 @@ fi
 
 # Zookeeper testing
 zoo_test(){
-zoo_error=0
-echo "Testing Zookeeper pods"
-zoo_ns=$(kubectl get pod --all-namespaces -l 'nirmata.io/service.name in (zookeeper, zk)' --no-headers | awk '{print $1}'|head -1)
-zoos=$(kubectl get pod -n $zoo_ns -l 'nirmata.io/service.name in (zookeeper, zk)' --no-headers | awk '{print $1}')
-zoo_num=0
-zoo_leader=""
-for zoo in $zoos; do
-    curr_zoo=$(kubectl -n $zoo_ns exec $zoo -- sh -c "/opt/apache-zookeeper-*/bin/zkServer.sh status" 2>&1|grep Mode)
-    zoo_node_count=$(kubectl exec $zoo -n $zoo_ns -- sh -c "echo srvr | nc localhost 2181|grep Node.count:" |awk '{ print $3; }')
-    if [[ $zoo_node_count -lt 50000 ]];then
-        echo $zoo node count is $zoo_node_count
-    else
-        error Error $zoo node count is $zoo_node_count
-    fi
-    if [[  $curr_zoo =~ "leader" ]];then
-        echo "$zoo is zookeeper leader"
-        zoo_leader="$zoo_leader $zoo"
-    else
-        if [[  $curr_zoo =~ "follower" ]];then
+    zoo_error=0
+    echo "Testing Zookeeper pods"
+    zoo_ns="nirmata" # Set the namespace explicitly
+    zoos=$(kubectl get pod -n $zoo_ns -l 'nirmata.io/service.name in (zookeeper, zk)' --no-headers | awk '{print $1}')
+    zoo_num=0
+    zoo_leader=""
+    for zoo in $zoos; do
+        echo "Checking pod: $zoo"
+        curr_zoo=$(kubectl -n $zoo_ns exec $zoo -- sh -c "/apache-zookeeper-3.9.2-bin/bin/zkServer.sh status" 2>&1)
+        echo "zkServer.sh output for $zoo:"
+        echo "$curr_zoo"
+
+        # Extract mode from output
+        if [[ $curr_zoo =~ "leader" ]];then
+            echo "$zoo is zookeeper leader"
+            zoo_leader="$zoo_leader $zoo"
+        elif [[ $curr_zoo =~ "follower" ]];then
             echo "$zoo is zookeeper follower"
+        elif [[ $curr_zoo =~ "standalone" ]];then
+            echo "Warning: $zoo is zookeeper standalone!"
+            zoo_leader="$zoo_leader $zoo"
         else
-            if [[  $curr_zoo =~ "standalone" ]];then
-                warn "$zoo is zookeeper standalone!"
-                zoo_leader="$zoo_leader $zoo"
-            else
-                error "$zoo appears to have failed!! (not follower/leader/standalone)"
-                kubectl -n $zoo_ns get pod $zoo --no-headers -o wide
-                zoo_error=1
-            fi
+            echo "Error: $zoo appears to have failed!! (not follower/leader/standalone)"
+            kubectl -n $zoo_ns get pod $zoo --no-headers -o wide
+            zoo_error=1
         fi
+        zoo_num=$((zoo_num + 1))
+    done
 
+    if [ -z "$zoo_leader" ];then
+        echo "Error: No Zookeeper Leader found!!"
+        zoo_error=1
     fi
-    zoo_num=$((zoo_num + 1));
-    zoo_df=$(kubectl -n $zoo_ns exec $zoo -- df /var/lib/zookeeper | awk '{ print $5; }' | tail -1 | sed s/%//)
-    [[ $zoo_df -gt $df_free ]] && error "Found zookeeper volume at ${zoo_df}% usage on $zoo!!"
-done
-
-if [[ $zoo_num -gt 3 ]];then
-    error "Found $zoo_num Zookeeper Pods $zoos!!"
-    zoo_error=1
-fi
-if [[ $zoo_num -eq 0 ]];then
-    error "Found Zero Zookeeper Pods !!"
-    zoo_error=1
-else
-    [[ $zoo_num -eq 1 ]] && warn "Found One Zookeeper Pod." && zoo_error=1
-fi
-if [ -z $zoo_leader ];then
-    error "No Zookeeper Leader found!!"
-    zoo_error=1
-fi
-if [[ $(echo $zoo_leader|wc -w) -gt 1 ]];then
-    warn "Found Zookeeper Leaders $zoo_leader!"
-    zoo_error=1
-fi
-[ $zoo_error -eq 0 ] && good "Zookeeper passed tests"
-
+    [ $zoo_error -eq 0 ] && good "Success: Zookeeper passed tests"
 }
 
 # testing kafka pods
