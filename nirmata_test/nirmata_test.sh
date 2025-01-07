@@ -1179,52 +1179,62 @@ fi
     check_port() {
         local port=$1
         local protocol=$2
-        if sudo iptables -C INPUT -p "$protocol" --dport "$port" -j ACCEPT &>/dev/null ||
-        sudo iptables -C FORWARD -p "$protocol" --dport "$port" -j ACCEPT &>/dev/null; then
-            good "Port $port/$protocol is enabled in iptables."
+
+        if [[ "$port" == *"-"* ]]; then
+            # Handle port ranges
+            local start_port=${port%-*}
+            local end_port=${port#*-}
+            if sudo iptables -C INPUT -p "$protocol" --dport "$start_port:$end_port" -j ACCEPT &>/dev/null ||
+            sudo iptables -C FORWARD -p "$protocol" --dport "$start_port:$end_port" -j ACCEPT &>/dev/null; then
+                good "Port range $port/$protocol is enabled in iptables."
+            else
+                error "Port range $port/$protocol is NOT enabled in iptables."
+                missing_ports+=("$port/$protocol")
+            fi
         else
-            error "Port $port/$protocol is NOT enabled in iptables."
-            missing_ports+=("$port")  # Add the missing port to the list
+            # Handle individual ports
+            if sudo iptables -C INPUT -p "$protocol" --dport "$port" -j ACCEPT &>/dev/null ||
+            sudo iptables -C FORWARD -p "$protocol" --dport "$port" -j ACCEPT &>/dev/null; then
+                good "Port $port/$protocol is enabled in iptables."
+            else
+                error "Port $port/$protocol is NOT enabled in iptables."
+                missing_ports+=("$port/$protocol")
+            fi
         fi
     }
 
-    # Initialize flags
+    # Initialize variables
     error_found=false
-    port_error_found=false
     missing_ports=()  # Initialize an array to track missing ports
 
-    # Verify specific ports for Nirmata Managed Cluster (check when nirmata_response == "yes")
+    # Verify specific ports for Nirmata Managed Cluster
     if [[ "$nirmata_response" == "yes" ]]; then
         # Ports specific to Nirmata Managed Cluster
         declare -a nirmata_ports=(2379 2380 6443 8090 8091 8472 10250 10255 10256 10257 10259 179 9099 4789 443 30000-32767)
         for port in "${nirmata_ports[@]}"; do
             check_port "$port" "tcp"
-        done
-        for port in "${nirmata_ports[@]}"; do
             check_port "$port" "udp"
         done
     fi
 
-    # Verify additional ports for Base Cluster (check when base_cluster_response == "yes")
+    # Verify additional ports for Base Cluster
     if [[ "$base_cluster_response" == "yes" ]]; then
         # Additional ports for Base Cluster
-        declare -a base_ports=(31111:31169 80:30141 1936:30142 9093 27017 80 9090 8443 2888 3888 2181)
+        declare -a base_ports=(31111-31169 80-30141 1936-30142 9093 27017 80 9090 8443 2888 3888 2181)
         for port in "${base_ports[@]}"; do
             check_port "$port" "tcp"
-        done
-        for port in "${base_ports[@]}"; do
             check_port "$port" "udp"
         done
     fi
 
     # If any ports are missing, print them out
     if [ ${#missing_ports[@]} -gt 0 ]; then
-        echo "The following ports are missing from iptables and need to be added:"
+        echo -e "\n\e[33mThe following ports are missing from iptables and need to be added:\e[0m"
         for port in "${missing_ports[@]}"; do
-            echo "- Port $port"
+            echo "- $port"
         done
     else
-        echo "All required ports are enabled in iptables. All looks good, no action required."
+        good "All required ports are enabled in iptables. No action required."
     fi
 
 
