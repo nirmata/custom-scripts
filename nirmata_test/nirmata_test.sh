@@ -1175,69 +1175,159 @@ fi
 # fi
 
 
+    # # Function to check if a port is enabled in iptables
+    # check_port() {
+    #     local port=$1
+    #     local protocol=$2
+    #     if sudo iptables -C INPUT -p "$protocol" --dport "$port" -j ACCEPT &>/dev/null ||
+    #     sudo iptables -C FORWARD -p "$protocol" --dport "$port" -j ACCEPT &>/dev/null; then
+    #         good "Port $port/$protocol is enabled in iptables."
+    #     else
+    #         error "Port $port/$protocol is NOT enabled in iptables."
+    #         missing_ports+=("$port")  # Add the missing port to the list
+    #     fi
+    # }
+
+    # # Initialize flags
+    # error_found=false
+    # port_error_found=false
+    # missing_ports=()  # Initialize an array to track missing ports
+
+    # # Verify specific ports for Nirmata Managed Cluster (check when nirmata_response == "yes")
+    # check_port() {
+    #     local port=$1
+    #     local protocol=$2
+    #     # Check if the port is present in the iptables output
+    #     if sudo iptables -L -v -n | grep -q "$protocol.*dpt:$port"; then
+    #         good "Port $port/$protocol is enabled in iptables."
+    #     else
+    #         error "Port $port/$protocol is NOT enabled in iptables."
+    #         missing_ports+=("$port")  # Add the missing port to the list
+    #     fi
+    # }
+
+    # # Initialize flags
+    # error_found=false
+    # port_error_found=false
+    # missing_ports=()  # Initialize an array to track missing ports
+
+    # # Verify specific ports for Nirmata Managed Cluster (check when nirmata_response == "yes")
+    # if [[ "$nirmata_response" == "yes" ]]; then
+    #     # Ports specific to Nirmata Managed Cluster
+    #     declare -a nirmata_ports=(2379 2380 6443 8090 8091 8472 10250 10255 10256 10257 10259 179 9099 4789 443 30000-32767)
+    #     for port in "${nirmata_ports[@]}"; do
+    #         check_port "$port" "tcp"
+    #     done
+    #     for port in "${nirmata_ports[@]}"; do
+    #         check_port "$port" "udp"
+    #     done
+    # fi
+
+    # # Verify additional ports for Base Cluster (check when base_cluster_response == "yes")
+    # if [[ "$base_cluster_response" == "yes" ]]; then
+    #     # Additional ports for Base Cluster
+    #     declare -a base_ports=(31111:31169 80:30141 1936:30142 9093 27017 80 9090 8443 2888 3888 2181)
+    #     for port in "${base_ports[@]}"; do
+    #         check_port "$port" "tcp"
+    #     done
+    #     for port in "${base_ports[@]}"; do
+    #         check_port "$port" "udp"
+    #     done
+    # fi
+
+    # # If any ports are missing, print them out
+    # if [ ${#missing_ports[@]} -gt 0 ]; then
+    #     echo "The following ports are missing from iptables and need to be added:"
+    #     for port in "${missing_ports[@]}"; do
+    #         echo "- Port $port"
+    #     done
+    # else
+    #     echo "All required ports are enabled in iptables. All looks good, no action required."
+    # fi
+
     # Function to check if a port is enabled in iptables
     check_port() {
         local port=$1
         local protocol=$2
 
-        if [[ "$port" == *"-"* ]]; then
-            # Handle port ranges
-            local start_port=${port%-*}
-            local end_port=${port#*-}
-            if sudo iptables -C INPUT -p "$protocol" --dport "$start_port:$end_port" -j ACCEPT &>/dev/null ||
-            sudo iptables -C FORWARD -p "$protocol" --dport "$start_port:$end_port" -j ACCEPT &>/dev/null; then
-                good "Port range $port/$protocol is enabled in iptables."
-            else
-                error "Port range $port/$protocol is NOT enabled in iptables."
-                missing_ports+=("$port/$protocol")
-            fi
+        # if sudo iptables -L -v -n | grep -q "$protocol.*dpt:$port"; then
+        #     good "Port $port/$protocol is enabled in iptables."
+        # else
+        #     error "Port $port/$protocol is NOT enabled in iptables."
+        #     missing_ports+=("$port/$protocol")  # Add the missing port and protocol to the list
+        # fi
+        if sudo iptables -L -v -n | grep -q "$protocol.*dpts\?:$port"; then
+            good "Port $port/$protocol is enabled in iptables."
         else
-            # Handle individual ports
-            if sudo iptables -C INPUT -p "$protocol" --dport "$port" -j ACCEPT &>/dev/null ||
-            sudo iptables -C FORWARD -p "$protocol" --dport "$port" -j ACCEPT &>/dev/null; then
-                good "Port $port/$protocol is enabled in iptables."
-            else
-                error "Port $port/$protocol is NOT enabled in iptables."
-                missing_ports+=("$port/$protocol")
-            fi
+            error "Port $port/$protocol is NOT enabled in iptables."
+            missing_ports+=("$port")  # Add the missing port to the list
         fi
     }
 
-    # Initialize variables
+    # Initialize flags and arrays
+    missing_ports=()
     error_found=false
-    missing_ports=()  # Initialize an array to track missing ports
 
-    # Verify specific ports for Nirmata Managed Cluster
+    # Ports and protocols for Managed Cluster
+    declare -a managed_ports_tcp=(2379 2380 6443 8090 8091 10250 10255 10256 10257 10259 179 9099 443)
+    declare -a managed_ports_udp=(8472 4789)
+    declare -a managed_port_ranges_tcp=(30000:32767)
+
+    # Ports and protocols for Base Cluster
+    declare -a base_ports_tcp=(2379 2380 6443 8090 8091 10250 10255 10256 10257 10259 179 9099 443 9093 27017 80 9090 8443 2888 3888 2181)
+    declare -a base_ports_udp=(8472 4789)
+    declare -a base_port_ranges_tcp=(30000:32767 31111:31169 80:30141 1936:30142)
+
+    # Check ports for Managed Cluster if enabled
     if [[ "$nirmata_response" == "yes" ]]; then
-        # Ports specific to Nirmata Managed Cluster
-        declare -a nirmata_ports=(2379 2380 6443 8090 8091 8472 10250 10255 10256 10257 10259 179 9099 4789 443 30000-32767)
-        for port in "${nirmata_ports[@]}"; do
+        echo "Checking ports for Managed Cluster..."
+
+        # Check individual TCP ports
+        for port in "${managed_ports_tcp[@]}"; do
             check_port "$port" "tcp"
+        done
+
+        # Check individual UDP ports
+        for port in "${managed_ports_udp[@]}"; do
             check_port "$port" "udp"
+        done
+
+        # Check TCP port ranges
+        for range in "${managed_port_ranges_tcp[@]}"; do
+            check_port "$range" "tcp"
         done
     fi
 
-    # Verify additional ports for Base Cluster
+    # Check ports for Base Cluster if enabled
     if [[ "$base_cluster_response" == "yes" ]]; then
-        # Additional ports for Base Cluster
-        declare -a base_ports=(31111-31169 80-30141 1936-30142 9093 27017 80 9090 8443 2888 3888 2181)
-        for port in "${base_ports[@]}"; do
+        echo "Checking ports for Base Cluster..."
+
+        # Check individual TCP ports
+        for port in "${base_ports_tcp[@]}"; do
             check_port "$port" "tcp"
+        done
+
+        # Check individual UDP ports
+        for port in "${base_ports_udp[@]}"; do
             check_port "$port" "udp"
+        done
+
+        # Check TCP port ranges
+        for range in "${base_port_ranges_tcp[@]}"; do
+            check_port "$range" "tcp"
         done
     fi
 
-    # If any ports are missing, print them out
+    # Print missing ports if any
     if [ ${#missing_ports[@]} -gt 0 ]; then
-        echo -e "\n\e[33mThe following ports are missing from iptables and need to be added:\e[0m"
+        echo "The following ports are missing from iptables and need to be added:"
         for port in "${missing_ports[@]}"; do
             echo "- $port"
         done
+        error_found=true
     else
-        good "All required ports are enabled in iptables. No action required."
+        echo "All required ports are enabled in iptables. All looks good, no action required."
     fi
-
-
 
 # Function to check if a port is open via telnet
 check_telnet() {
