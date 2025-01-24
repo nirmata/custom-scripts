@@ -1,0 +1,45 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: backup-mongodb
+  namespace: nirmata
+spec:
+  concurrencyPolicy: Forbid
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 5
+      template:
+        spec:
+          serviceAccountName: mongodb-backup-sa
+          containers:
+          - env:
+            - name: MONGODB_URI
+              valueFrom:
+                secretKeyRef:
+                  key: MONGODB_URI
+                  name: mongodb-uri
+            - name: BUCKET_URI
+              valueFrom:
+                secretKeyRef:
+                  key: BUCKET_URI
+                  name: aws
+            - name: AWS_DEFAULT_REGION
+              valueFrom:
+                secretKeyRef:
+                  key: AWS_DEFAULT_REGION
+                  name: aws
+            image: ptuladhar/k8s-backup-mongodb:latest
+            imagePullPolicy: IfNotPresent
+            name: backup-mongodb
+            terminationMessagePath: /dev/termination-log
+            terminationMessagePolicy: File
+          dnsPolicy: ClusterFirst
+          # imagePullSecrets:
+          # - name: nexus-docker-private-registry-dcp.ci.duke-energy.app
+          restartPolicy: Never
+          schedulerName: default-scheduler
+          terminationGracePeriodSeconds: 30
+  schedule: 0 */6 * * *
+  successfulJobsHistoryLimit: 4
+  suspend: false

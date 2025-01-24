@@ -25,7 +25,7 @@ run_local=1
 run_remote=1
 # set to 1 to disable base_cluster_node tests, this tests base cluster nodes
 run_base_cluster_local=1
-# These are used to run the mongo, zookeeper, kafka and kafka controller tests by default to test the nrimata setup.
+# These are used to run the mongo, zookeeper, and kafka tests by default to test the nrimata setup.
 # Maybe we should fork this script to move the nirmata tests else where?
 run_mongo=1
 run_zoo=1
@@ -58,7 +58,7 @@ fi
 # Should we email by default?
 email=1
 # default sendemail containers Note NOT sendmail!
-sendemail='ghcr.io/nirmata/sendemail'
+sendemail='ssilbory/sendemail'
 alwaysemail=1
 # Set this to fix local issues by default
 fix_issues=1
@@ -387,6 +387,7 @@ mongos=$(kubectl get pod --namespace=$mongo_ns -l nirmata.io/service.name=mongod
 mongo_num=0
 # The mongo master (or masters ?!!?)
 mongo_master=""
+echo "$mongo_ns"
 # Number of masters (ideally one)
 mongo_masters=0
 mongo_error=0
@@ -410,10 +411,10 @@ for mongo in $mongos; do
             kubectl -n $mongo_ns get pod $mongo --no-headers -o wide
         fi
     fi
-    mongo_df=$(kubectl -n $mongo_ns exec $mongo $mongo_container -- df /data/db | awk '{ print $5; }' | tail -1 | sed s/%//)
+    mongo_df=$(kubectl -n $mongo_ns exec $mongo $mongo_container -- df /data/db | awk '{ print $5; }' |tail -1|sed s/%//)
     [[ $mongo_df -gt $df_free_mongo ]] && (error "Found MongoDB volume at ${mongo_df}% usage on $mongo" ; \
         kubectl -n $mongo_ns exec $mongo $mongo_container -- du --all -h /data/db/ |grep '^[0-9,.]*G' )
-    kubectl -n $mongo_ns exec $mongo $mongo_container -- du  -h /data/db/WiredTigerHS.wt |grep '[0-9]G' && \
+    kubectl -n $mongo_ns exec $mongo $mongo_container -- du  -h /data/db/WiredTigerLAS.wt |grep '[0-9]G' && \
         warn "WiredTiger lookaside file is very large on $mongo. Consider increasing Mongodb memory."
     mongo_num=$((mongo_num + 1));
     mongo_stateStr=$(kubectl -n $mongo_ns exec $mongo $mongo_container -- sh -c 'echo "rs.status()" |mongo' 2>&1 |grep stateStr)
@@ -436,7 +437,7 @@ fi
 
 if [[ $mongo_masters -lt 1 ]]; then
     if [[ $mongo_num -eq 1 ]];then
-	    warn "No Mongo Master found!! (Assuming standalone)"
+            warn "No Mongo Master found!! (Assuming standalone)"
     else
         error "No Mongo Master found with multiple mongo nodes!!"
         mongo_error=1
@@ -520,7 +521,6 @@ zoo_test(){
     [ $zoo_error -eq 0 ] && good "Zookeeper passed tests"
 }
 
-
 # testing kafka pods
 kafka_test(){
     echo "Testing Kafka pods"
@@ -555,6 +555,7 @@ kafka_test(){
     [[ $kaf_error -eq 0 ]] && good "Kafka passed tests"
 }
 
+# testing kafka-controller pods
 kafka_controller_test(){
     echo "Testing Kafka controller pods"
     kafka_controller_ns=$kafka_ns
@@ -599,6 +600,7 @@ if [[ $email -eq 0 ]];then
     [ -z $logfile ] && logfile="/tmp/k8_test.$$"
     [ -z $EMAIL_USER ] && EMAIL_USER="" #would this ever work?
     [ -z $EMAIL_PASSWD ] && EMAIL_PASSWD="" #would this ever work?
+    #[ -z $TO ] && error "No TO address given!!!" && exit 1 # Why did I comment this out?
     [ -z $FROM ] && FROM="k8@nirmata.com" && warn "You provided no From address using $FROM"
     [ -z "$SUBJECT" ] && SUBJECT="K8 test script error" && warn "You provided no Subject using $SUBJECT"
     [ -z $SMTP_SERVER ] && error "No smtp server given!!!" && exit 1
@@ -626,7 +628,7 @@ if [[ $email -eq 0 ]];then
                     echo $BODY |sendEmail -t "$email_to" -f "$FROM" -u \""$SUBJECT"\" -s "$SMTP_SERVER" -xu "$EMAIL_USER" -xp "$EMAIL_PASSWD" "$EMAIL_OPTS"
                 fi
             else
-                docker run $sendemail $email_to $FROM "$SUBJECT" "${BODY}" $SMTP_SERVER "$EMAIL_USER" "$EMAIL_PASSWD" "$EMAIL_OPTS"
+                podman run $sendemail $email_to $FROM "$SUBJECT" "${BODY}" $SMTP_SERVER "$EMAIL_USER" "$EMAIL_PASSWD" "$EMAIL_OPTS"
             fi
             #If they named it something else don't delete
             rm -f /tmp/k8_test.$$
@@ -759,7 +761,7 @@ spec:
     fi
 
     for pod in $(kubectl -n $ns get pods -l app=nirmata-net-test-all-app --no-headers |grep Running |awk '{print $1}');do
-      root_df=$(kubectl -n $ns exec $pod -- df / | awk '{ print $5; }' | tail -1 | sed s/%//)
+      root_df=$(kubectl -n $ns exec $pod -- df / | awk '{ print $5; }' |tail -1|sed s/%//)
       [[ $root_df -gt $df_free_root ]] && ( node=$(kubectl get pod $pod -o=custom-columns=NODE:.spec.nodeName) ;\
         error "Found docker partition ${root_df}% usage on $node" ; )
 
@@ -769,14 +771,14 @@ spec:
       kubectl --namespace=$ns delete ds nirmata-net-test-all --ignore-not-found=true &>/dev/null
     done
 
-    # Test if metrics service is enabled
+# Test if metrics service is enabled
     if kubectl get deployment -n kube-system metrics-server > /dev/null 2>&1; then
         good "Metric server is installed."
     else
         warn "Metric server is not installed."
     fi
 
-    NAMESPACE="devtest5"
+    NAMESPACE="nirmata"
 
     # Get all deployments in the specified namespace
     deployments=$(kubectl get deployments -n "$NAMESPACE" -o json)
@@ -830,16 +832,8 @@ spec:
 check_connectivity() {
     local lb_dns=$1
 
-    # # Check connectivity using curl
-    # if curl -s --connect-timeout 5 "https://$lb_dns:443" > /dev/null; then
-    #     good "Successfully connected to $lb_dns on port 443."
-    # else
-    #     error "Failed to connect to $lb_dns on port 443."
-    # fi
-
     # Check connectivity using curl
-    echo "Checking bidirectional connectivity to $lb_dns on port 443..."
-    if curl -k -v --connect-timeout 5 "https://$lb_dns:443" 2>&1 | grep -q "Connected to"; then
+    if curl -s --connect-timeout 5 "https://$lb_dns:443" > /dev/null; then
         good "Successfully connected to $lb_dns on port 443."
     else
         error "Failed to connect to $lb_dns on port 443."
@@ -1044,39 +1038,29 @@ else
 fi
 
 
-# Ask if running on a Nirmata managed cluster
-if [[ "$nirmata_response" == "yes" ]]; then
-    echo "Skipping Kubernetes repository check for Nirmata managed cluster."
-
-elif [[ "$nirmata_response" == "no" && "$base_cluster_response" == "yes" ]]; then
-    # Verify if the Kubernetes repository is enabled for base cluster
-    if yum repolist enabled | grep -q "kubernetes"; then
-        # Attempt to list packages from the Kubernetes repository to verify access
-        if sudo yum --disablerepo="*" --enablerepo="kubernetes" list available kubectl > /dev/null 2>&1; then
-            good "Kubernetes repository is accessible, and packages can be downloaded."
-        else
-            error "Kubernetes repository is enabled, but packages cannot be downloaded.
-            Action Required: Verify if the repository URL is whitelisted in your network/proxy settings.
-            Ensure that the node has access or the necessary permissions to access the repository."
-        fi
+# Verify if the Kubernetes repository is enabled
+if yum repolist enabled | grep -q "kubernetes"; then
+    # Attempt to list packages from the Kubernetes repository to verify access
+    if sudo yum --disablerepo="*" --enablerepo="kubernetes" list available kubectl > /dev/null 2>&1; then
+        good "Kubernetes repository is accessible, and packages can be downloaded."
     else
-        error "Kubernetes repository is not enabled or not added correctly. Please whitelist if this node is for Base Cluster otherwise Ignore it, Not required for the Nirmata Managed Cluster.
-        Action Required: Re-add the repository using:
-        cat <<EOF | sudo tee /etc/yum.repos.d/kubernetes.repo
-        [kubernetes]
-        name=Kubernetes
-        baseurl=https://pkgs.k8s.io/core:/stable:/v1.29/rpm/
-        enabled=1
-        gpgcheck=1
-        gpgkey=https://pkgs.k8s.io/core:/stable:/v1.29/rpm/repodata/repomd.xml.key
-        exclude=kubelet kubeadm kubectl cri-tools kubernetes-cni
-        EOF
-        Ensure that the repository is whitelisted in your network/proxy settings."
+        error "Kubernetes repository is enabled, but packages cannot be downloaded. 
+        Action Required: Verify if the repository URL is whitelisted in your network/proxy settings. 
+        Ensure that the node has access or the necessary permissions to access the repository."
     fi
-
 else
-    error "Invalid response for Nirmata or Base Cluster. Exiting."
-    exit 1
+    error "Kubernetes repository is not enabled or not added correctly. Please whitelist if this node is for Base Cluster otherwise Ignore it, Not required for the Nirmata Managed Cluster. 
+    Action Required: Re-add the repository using:
+    cat <<EOF | sudo tee /etc/yum.repos.d/kubernetes.repo
+    [kubernetes]
+    name=Kubernetes
+    baseurl=https://pkgs.k8s.io/core:/stable:/v1.29/rpm/
+    enabled=1
+    gpgcheck=1
+    gpgkey=https://pkgs.k8s.io/core:/stable:/v1.29/rpm/repodata/repomd.xml.key
+    exclude=kubelet kubeadm kubectl cri-tools kubernetes-cni
+    EOF
+    Ensure that the repository is whitelisted in your network/proxy settings."
 fi
 
 
@@ -1117,217 +1101,62 @@ fi
 # Do we really need this has anyone complained?
 
 
-# # Function to check if a port is enabled in iptables
-# check_port() {
-#     local port=$1
-#     local protocol=$2
-#     if sudo iptables -C INPUT -p "$protocol" --dport "$port" -j ACCEPT &>/dev/null ||
-#        sudo iptables -C FORWARD -p "$protocol" --dport "$port" -j ACCEPT &>/dev/null; then
-#         good "Port $port/$protocol is enabled in iptables."
-#     else
-#         warn "Port $port/$protocol is NOT enabled in iptables."
-#     fi
-# }
-
-# # Initialize flags
-# error_found=false
-# port_error_found=false
-
-# # Function to check if a port is enabled in iptables
-# check_port() {
-#     local port=$1
-#     local protocol=$2
-#     if sudo iptables -C INPUT -p "$protocol" --dport "$port" -j ACCEPT &>/dev/null ||
-#        sudo iptables -C FORWARD -p "$protocol" --dport "$port" -j ACCEPT &>/dev/null; then
-#         good "Port $port/$protocol is enabled in iptables."
-#     else
-#         port_error_found=true  # Set the port error flag
-#     fi
-# }
-
-# # Verify specific ports
-# declare -a ports=(2379 2380 6443 8090 8091 8472 10250 10251 10252 10255 10256 10257 10259 179 9099 4789)
-
-# for port in "${ports[@]}"; do
-#     check_port "$port" "tcp"
-# done
-
-# # Additional cluster ports (incoming and outgoing)
-# check_port 53 udp    # DNS
-# check_port 8472 udp    # DNS
-# check_port 443 tcp   # HTTPS
-# check_port 30000:32768 tcp   # NodePort range
-
-# # Check if any errors were found
-# if $port_error_found; then
-#     # Check if all inbound and outbound traffic is allowed
-#     allowed_inbound=$(sudo iptables -L INPUT -n | grep -E 'ACCEPT' | wc -l)
-#     allowed_outbound=$(sudo iptables -L OUTPUT -n | grep -E 'ACCEPT' | wc -l)
-
-#     # If all inbound and outbound are allowed
-#     if [[ $allowed_inbound -gt 0 && $allowed_outbound -gt 0 ]]; then
-#         good "All inbound and outbound traffic is allowed in iptables. All looks good, no action required."
-#     else
-#         error "Please reach out to the UNIX team to enable the required ports in iptables."
-#     fi
-# else
-#     good "All required ports are enabled in iptables. All looks good, no action required."
-# fi
-
-
-    # # Function to check if a port is enabled in iptables
-    # check_port() {
-    #     local port=$1
-    #     local protocol=$2
-    #     if sudo iptables -C INPUT -p "$protocol" --dport "$port" -j ACCEPT &>/dev/null ||
-    #     sudo iptables -C FORWARD -p "$protocol" --dport "$port" -j ACCEPT &>/dev/null; then
-    #         good "Port $port/$protocol is enabled in iptables."
-    #     else
-    #         error "Port $port/$protocol is NOT enabled in iptables."
-    #         missing_ports+=("$port")  # Add the missing port to the list
-    #     fi
-    # }
-
-    # # Initialize flags
-    # error_found=false
-    # port_error_found=false
-    # missing_ports=()  # Initialize an array to track missing ports
-
-    # # Verify specific ports for Nirmata Managed Cluster (check when nirmata_response == "yes")
-    # check_port() {
-    #     local port=$1
-    #     local protocol=$2
-    #     # Check if the port is present in the iptables output
-    #     if sudo iptables -L -v -n | grep -q "$protocol.*dpt:$port"; then
-    #         good "Port $port/$protocol is enabled in iptables."
-    #     else
-    #         error "Port $port/$protocol is NOT enabled in iptables."
-    #         missing_ports+=("$port")  # Add the missing port to the list
-    #     fi
-    # }
-
-    # # Initialize flags
-    # error_found=false
-    # port_error_found=false
-    # missing_ports=()  # Initialize an array to track missing ports
-
-    # # Verify specific ports for Nirmata Managed Cluster (check when nirmata_response == "yes")
-    # if [[ "$nirmata_response" == "yes" ]]; then
-    #     # Ports specific to Nirmata Managed Cluster
-    #     declare -a nirmata_ports=(2379 2380 6443 8090 8091 8472 10250 10255 10256 10257 10259 179 9099 4789 443 30000-32767)
-    #     for port in "${nirmata_ports[@]}"; do
-    #         check_port "$port" "tcp"
-    #     done
-    #     for port in "${nirmata_ports[@]}"; do
-    #         check_port "$port" "udp"
-    #     done
-    # fi
-
-    # # Verify additional ports for Base Cluster (check when base_cluster_response == "yes")
-    # if [[ "$base_cluster_response" == "yes" ]]; then
-    #     # Additional ports for Base Cluster
-    #     declare -a base_ports=(31111:31169 80:30141 1936:30142 9093 27017 80 9090 8443 2888 3888 2181)
-    #     for port in "${base_ports[@]}"; do
-    #         check_port "$port" "tcp"
-    #     done
-    #     for port in "${base_ports[@]}"; do
-    #         check_port "$port" "udp"
-    #     done
-    # fi
-
-    # # If any ports are missing, print them out
-    # if [ ${#missing_ports[@]} -gt 0 ]; then
-    #     echo "The following ports are missing from iptables and need to be added:"
-    #     for port in "${missing_ports[@]}"; do
-    #         echo "- Port $port"
-    #     done
-    # else
-    #     echo "All required ports are enabled in iptables. All looks good, no action required."
-    # fi
-
-    # Function to check if a port is enabled in iptables
-    check_port() {
-        local port=$1
-        local protocol=$2
-
-        # if sudo iptables -L -v -n | grep -q "$protocol.*dpt:$port"; then
-        #     good "Port $port/$protocol is enabled in iptables."
-        # else
-        #     error "Port $port/$protocol is NOT enabled in iptables."
-        #     missing_ports+=("$port/$protocol")  # Add the missing port and protocol to the list
-        # fi
-        if sudo iptables -L -v -n | grep -q "$protocol.*dpts\?:$port"; then
-            good "Port $port/$protocol is enabled in iptables."
-        else
-            error "Port $port/$protocol is NOT enabled in iptables."
-            missing_ports+=("$port")  # Add the missing port to the list
-        fi
-    }
-
-    # Initialize flags and arrays
-    missing_ports=()
-    error_found=false
-
-    # Ports and protocols for Managed Cluster
-    declare -a managed_ports_tcp=(2379 2380 6443 8090 8091 10250 10255 10256 10257 10259 179 9099 443)
-    declare -a managed_ports_udp=(8472 4789)
-    declare -a managed_port_ranges_tcp=(30000:32767)
-
-    # Ports and protocols for Base Cluster
-    declare -a base_ports_tcp=(2379 2380 6443 8090 8091 10250 10255 10256 10257 10259 179 9099 443 9093 27017 80 9090 8443 2888 3888 2181)
-    declare -a base_ports_udp=(8472 4789)
-    declare -a base_port_ranges_tcp=(30000:32767 31111:31169 80:30141 1936:30142)
-
-    # Check ports for Managed Cluster if enabled
-    if [[ "$nirmata_response" == "yes" ]]; then
-        echo "Checking ports for Managed Cluster..."
-
-        # Check individual TCP ports
-        for port in "${managed_ports_tcp[@]}"; do
-            check_port "$port" "tcp"
-        done
-
-        # Check individual UDP ports
-        for port in "${managed_ports_udp[@]}"; do
-            check_port "$port" "udp"
-        done
-
-        # Check TCP port ranges
-        for range in "${managed_port_ranges_tcp[@]}"; do
-            check_port "$range" "tcp"
-        done
-    fi
-
-    # Check ports for Base Cluster if enabled
-    if [[ "$base_cluster_response" == "yes" ]]; then
-        echo "Checking ports for Base Cluster..."
-
-        # Check individual TCP ports
-        for port in "${base_ports_tcp[@]}"; do
-            check_port "$port" "tcp"
-        done
-
-        # Check individual UDP ports
-        for port in "${base_ports_udp[@]}"; do
-            check_port "$port" "udp"
-        done
-
-        # Check TCP port ranges
-        for range in "${base_port_ranges_tcp[@]}"; do
-            check_port "$range" "tcp"
-        done
-    fi
-
-    # Print missing ports if any
-    if [ ${#missing_ports[@]} -gt 0 ]; then
-        echo "The following ports are missing from iptables and need to be added:"
-        for port in "${missing_ports[@]}"; do
-            echo "- $port"
-        done
-        error_found=true
+# Function to check if a port is enabled in iptables
+check_port() {
+    local port=$1
+    local protocol=$2
+    if sudo iptables -C INPUT -p "$protocol" --dport "$port" -j ACCEPT &>/dev/null ||
+       sudo iptables -C FORWARD -p "$protocol" --dport "$port" -j ACCEPT &>/dev/null; then
+        good "Port $port/$protocol is enabled in iptables."
     else
-        echo "All required ports are enabled in iptables. All looks good, no action required."
+        warn "Port $port/$protocol is NOT enabled in iptables."
     fi
+}
+
+# Initialize flags
+error_found=false
+port_error_found=false
+
+# Function to check if a port is enabled in iptables
+check_port() {
+    local port=$1
+    local protocol=$2
+    if sudo iptables -C INPUT -p "$protocol" --dport "$port" -j ACCEPT &>/dev/null ||
+       sudo iptables -C FORWARD -p "$protocol" --dport "$port" -j ACCEPT &>/dev/null; then
+        good "Port $port/$protocol is enabled in iptables."
+    else
+        port_error_found=true  # Set the port error flag
+    fi
+}
+
+# Verify specific ports
+declare -a ports=(2379 2380 6443 8090 8091 8472 10250 10251 10252 10255 10256 10257 10259 179 9099 4789)
+
+for port in "${ports[@]}"; do
+    check_port "$port" "tcp"
+done
+
+# Additional cluster ports (incoming and outgoing)
+check_port 53 udp    # DNS
+check_port 8472 udp    # DNS
+check_port 443 tcp   # HTTPS
+check_port 30000:32768 tcp   # NodePort range
+
+# Check if any errors were found
+if $port_error_found; then
+    # Check if all inbound and outbound traffic is allowed
+    allowed_inbound=$(sudo iptables -L INPUT -n | grep -E 'ACCEPT' | wc -l)
+    allowed_outbound=$(sudo iptables -L OUTPUT -n | grep -E 'ACCEPT' | wc -l)
+
+    # If all inbound and outbound are allowed
+    if [[ $allowed_inbound -gt 0 && $allowed_outbound -gt 0 ]]; then
+        good "All inbound and outbound traffic is allowed in iptables. All looks good, no action required."
+    else
+        error "Please reach out to the UNIX team to enable the required ports in iptables."
+    fi
+else
+    good "All required ports are enabled in iptables. All looks good, no action required."
+fi
 
 # Function to check if a port is open via telnet
 check_telnet() {
@@ -1437,6 +1266,16 @@ if command -v docker &>/dev/null; then
 elif command -v podman &>/dev/null; then
     CONTAINER_RUNTIME="podman"
     echo "[INFO] Podman is installed. Proceeding with Podman checks."
+
+    # Test for Podman service
+    if ! systemctl is-active podman &>/dev/null ; then
+        error 'Podman service is not active. Maybe you are using some other CRI?'
+        if [[ $fix_issues -eq 0 ]]; then
+            echo_cmd sudo systemctl start podman
+        fi
+    else
+        good "Podman is running"
+    fi
 
     if ! systemctl is-enabled podman &>/dev/null; then
         error 'Podman service is not starting at boot. Maybe you are using some other CRI?'
@@ -1598,7 +1437,7 @@ if command -v docker &>/dev/null && systemctl is-active docker &>/dev/null; then
         echo "Found nirmata-agent.service. Testing Nirmata agent."
         test_agent
     else
-        good "Nirmata agent service for Docker is not found!"
+        warn "Nirmata agent service for Docker is not found!"
     fi
 elif command -v podman &>/dev/null && systemctl is-active podman &>/dev/null; then
     echo "Podman is running. Checking for Nirmata Podman agent..."
@@ -1606,42 +1445,35 @@ elif command -v podman &>/dev/null && systemctl is-active podman &>/dev/null; th
         echo "Found nirmata-agent-podman.service. Testing Nirmata Podman agent."
         test_agent
     else
-        good "Nirmata agent service for Podman is not found!"
+        warn "Nirmata agent service for Podman is not found!"
     fi
 else
     echo "Neither Docker nor Podman is running. Checking for kubelet..."
-    # Only perform kubelet check if it's a managed cluster (base_cluster_response is "no")
-    if [[ "$nirmata_response" == "yes" ]]; then
-        echo "Checking for kubelet..."
-        if type kubelet &>/dev/null; then
-            # Test for Kubernetes service
-            echo "Found kubelet binary. Running local Kubernetes tests."
-            echo -e "\e[33mNote: If you plan on running the Nirmata agent, remove this kubelet! \nIf this kubelet is running, it will prevent Nirmata's kubelet from running.\e[0m"
+    if type kubelet &>/dev/null; then
+        # Test for Kubernetes service
+        echo "Found kubelet binary. Running local Kubernetes tests."
+        echo -e "\e[33mNote: If you plan on running the Nirmata agent, remove this kubelet! \nIf this kubelet is running, it will prevent Nirmata's kubelet from running.\e[0m"
 
-            if ! systemctl is-active kubelet &>/dev/null; then
-                error 'Kubelet is not active?'
-            else
-                good "Kubelet is active"
-            fi
-
-            if ! systemctl is-enabled kubelet &>/dev/null; then
-                if [[ $fix_issues -eq 0 ]]; then
-                    echo "Applying the following fixes"
-                    echo_cmd sudo systemctl enable kubelet
-                else
-                    error 'Kubelet is not set to run at boot?'
-                fi
-            else
-                good "Kubelet is enabled at boot"
-            fi
-
+        if ! systemctl is-active kubelet &>/dev/null; then
+            error 'Kubelet is not active?'
         else
-            error "No Kubelet or Nirmata Agent found!"
+            good "Kubelet is active"
         fi
-    else
-        echo "Skipping kubelet check for Base Cluster."
-    fi
 
+        if ! systemctl is-enabled kubelet &>/dev/null; then
+            if [[ $fix_issues -eq 0 ]]; then
+                echo "Applying the following fixes"
+                echo_cmd sudo systemctl enable kubelet
+            else
+                error 'Kubelet is not set to run at boot?'
+            fi
+        else
+            good "Kubelet is enabled at boot"
+        fi
+
+    else
+        error "No Kubelet or Nirmata Agent found!"
+    fi
 
     if [ ! -e /opt/cni/bin/bridge ]; then
         error '/opt/cni/bin/bridge not found. Is your CNI installed?'
@@ -1657,26 +1489,19 @@ fi
         error "/etc/containerd is not mounted. Please mount it with the help of respective team."
     fi
 
-    # # Test if containerd data directory exists (commonly used)
-    # if [ -d '/var/lib/containerd' ]; then
-    #     good "/var/lib/containerd exists."
-    # else
-    #     error "/var/lib/containerd does not exist."
-    # fi
+    # Test if containerd data directory exists (commonly used)
+    if [ -d '/var/lib/containerd' ]; then
+        good "/var/lib/containerd exists."
+    else
+        error "/var/lib/containerd does not exist."
+    fi
 
     # Test if Docker directory exists
     if [ -d '/var/lib/docker/containerd' ]; then
         good "/var/lib/docker/containerd exists."
-        size=$(du -sh /var/lib/docker/containerd 2>/dev/null | awk '{print $1}')
-        if [ -n "$size" ]; then
-            good "Size of /var/lib/docker/containerd: $size."
-        else
-            warn "Could not determine the size of /var/lib/docker/containerd."
-        fi
     else
         error "/var/lib/docker/containerd does not exist."
     fi
-
 
     # Test if Podman configuration directory exists
     if [ -d '/etc/containers' ]; then
