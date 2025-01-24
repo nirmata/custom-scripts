@@ -16,7 +16,8 @@ To back up the databases, use the following command:
 ./backup-mongo.sh <path_to_dump_files>
 ```
 ### Restore
-To restore the databases, use the following command with the appropriate path:
+To restore the databases, use the following command with the appropriate path 
+use the nirmata-backups folder as path for the backup file to restore whic would be there in the backup folder:
 ```sh
 ./restore.sh <path_to_dump_files>
 ```
