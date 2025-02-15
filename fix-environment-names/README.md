@@ -1,6 +1,6 @@
 ## Fix incorrect environment names linked to namespaces
 
-The script in this folder is used to fix the issue of incorrect environments linked to namespaces in the cluster. It takes, the NirmataURL, and the clusterName as the input and updates the annotations on the namespaces so they are associated with the correct environments. 
+The script in this folder is used to fix the issue of incorrect environments linked to namespaces in the cluster. It takes, the NirmataURL, and the clusterName as the input and updates the annotations on the namespaces so they are associated with the correct environments in Nirmata.
 
 ## Usage: 
 
