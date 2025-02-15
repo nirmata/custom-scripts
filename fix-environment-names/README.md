@@ -83,4 +83,4 @@ Environment name: mytest
 namespace/mytest patched
 Successfully updated annotations for namespace: mytest
 
-```sh
+```
