@@ -29,29 +29,26 @@ cd nirmata_cluster_info_script
 ```bash
 chmod +x nirmata_cluster_info.sh
 ```
-3. #### Get Nirmata API Token:
- 
-- **Login to Nirmata** > **Go to your profile** > **Click on Generate API key** 
 
-4. #### Run the script with your Nirmata URL:
+3. #### Run the script with your Nirmata URL:
 ```bash
 ./nirmata_cluster_info.sh <NIRMATA_URL>
 ```
-5. #### The script will then securely prompt you for your API token:
+4. #### The script will then securely prompt you for your API token:
 ```bash
 Enter the Nirmata API token: [Type your token here]
 ```
-6. #### Get Nirmata API Token:
+5. #### Get Nirmata API Token:
  
 - **Login to Nirmata** > **Go to your profile** > **Click on Generate API key**
 
-7. #### Example:
+6. #### Example:
 ```bash
 ishaanj18@Jarvis:~/novarti/custom-scripts/nirmata_cluster_info_script$ ./nirmata_cluster_info.sh https://pe420.nirmata.co
 Enter the Nirmata API token: 
 Fetching cluster information...
 ```
-8. #### Script Output: Cluster Information  
+7. #### Script Output: Cluster Information  
 
 The script outputs JSON-formatted information for each cluster, including:  
 
@@ -63,6 +60,7 @@ The script outputs JSON-formatted information for each cluster, including:
 - **Cluster Status**  
 - **Creation Date**  
 - **Cluster ID**  
+- **Cluster Type**
 
 Example Output- 
 ```bash
