@@ -3,12 +3,24 @@
 # Configuration
 NIRMATA_URL="$1"
 CLUSTER_NAME="$2"
+CONTEXT_NAME="$3"
 
-if [[ $# != 2 ]]; then
+if [[ $# != 3 ]]; then
 	echo
-	echo "Usage: $0 <NirmataURL> <cluster-name>"
+	echo "Usage: $0 <NirmataURL> <cluster-name> <context-name>"
 	echo
 	exit 1
+fi
+
+echo
+kubectl config use-context "$CONTEXT_NAME" 2> /dev/null
+
+if [[ $? != 0 ]]; then
+	echo
+	echo "Something went wrong. Please verify if the contextname is correct."
+	echo 
+	exit 1
+
 fi
 
 echo
