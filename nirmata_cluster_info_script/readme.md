@@ -66,7 +66,8 @@ The script outputs JSON-formatted information for each cluster, including:
 
 Example Output- 
 ```bash
-Enter the Nirmata API token: [Type your token here]
+ishaanj18@Jarvis:~/novarti$ ./new-script-again.sh https://pe420.nirmata.co
+Enter the Nirmata API token:
 Fetching cluster information...
 Processing nodes for cluster: day2-training
 {
@@ -77,7 +78,8 @@ Processing nodes for cluster: day2-training
   "worker_nodes": [],
   "cluster_status": ["Cluster failed.","Cluster has not connected for more than 30 minutes. Last error: Failed to checkClusterConnection. not connected"],
   "creation_date": "2025-02-13 10:16:26 UTC",
-  "cluster_id": "4bafa32f-0dff-4050-a105-dcb442211fff"
+  "cluster_id": "4bafa32f-0dff-4050-a105-dcb442211fff",
+  "cluster_type": "default-addons-type"
 }
 ----------------------------------------
 Processing nodes for cluster: duke-test
@@ -89,7 +91,8 @@ Processing nodes for cluster: duke-test
   "worker_nodes": [],
   "cluster_status": ["Validating cluster settings"],
   "creation_date": "2025-02-13 15:10:30 UTC",
-  "cluster_id": "b5302919-ead1-41c5-b607-68896d4531bb"
+  "cluster_id": "b5302919-ead1-41c5-b607-68896d4531bb",
+  "cluster_type": "default-addons-type"
 }
 ----------------------------------------
 Processing nodes for cluster: duktest
@@ -101,7 +104,8 @@ Processing nodes for cluster: duktest
   "worker_nodes": [],
   "cluster_status": ["Cluster failed.","Cluster has not connected for more than 30 minutes. Last error: Failed to checkClusterConnection. not connected"],
   "creation_date": "2025-02-15 04:35:47 UTC",
-  "cluster_id": "e60cc730-d1ab-40fc-b4fb-3605586e4139"
+  "cluster_id": "e60cc730-d1ab-40fc-b4fb-3605586e4139",
+  "cluster_type": "default-addons-type"
 }
 ----------------------------------------
 Processing nodes for cluster: novartis-v129
@@ -113,7 +117,8 @@ Processing nodes for cluster: novartis-v129
   "worker_nodes": ["ip-10-20-0-41.us-west-1.compute.internal"],
   "cluster_status": ["Validating cluster settings"],
   "creation_date": "2025-02-19 04:16:29 UTC",
-  "cluster_id": "41c5145e-7611-42d8-9d5a-4466fa2d86f9"
+  "cluster_id": "41c5145e-7611-42d8-9d5a-4466fa2d86f9",
+  "cluster_type": "default-v1.29.3"
 }
 
 ```
