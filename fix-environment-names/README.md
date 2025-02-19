@@ -6,7 +6,9 @@ The script in this folder is used to fix the issue of incorrect environments lin
 
 ```sh
 
- ./fix-environment-names.sh https://pe420.nirmata.co duktest
+ ./fix-environment-names.sh https://pe420.nirmata.co testcluster kind-testcluster
+
+Switched to context "kind-testcluster".
 
 Enter the Nirmata API token:
 
