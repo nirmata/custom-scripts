@@ -23,7 +23,7 @@ A bash script to provide detailed information about nodes and cluster status.
 1. #### Clone the repository:
 ```bash
 git clone https://github.com/nirmata/custom-scripts.git
-cd nirmata_cluster_info_script
+cd custom-scripts/nirmata_cluster_info_script
 ```
 2. #### Make the script executable:
 ```bash
