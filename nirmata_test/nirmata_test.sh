@@ -1005,26 +1005,15 @@ if type sestatus &>/dev/null; then
 else
     warn "sestatus command not found. Unable to check SELinux status."
 fi
-
 # Test kernel IP forward settings
 if grep -q 0 /proc/sys/net/ipv4/ip_forward; then
-    error "net.ipv4.ip_forward is set to 0"
-    
-    if [[ $fix_issues -eq 0 ]]; then
-        warn "Applying the following fixes..."
-        # Update the command to enable IP forwarding
-        echo_cmd sysctl -w net.ipv4.ip_forward=1
-        # Update to persist the change in /etc/sysctl.conf
-        echo_cmd echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf
-    else
-        echo "Consider the following changes:"
-        echo '  sysctl -w net.ipv4.ip_forward=1'  # Suggest command for enabling IP forwarding
-        echo '  echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf'  # Suggest command to persist the change
-    fi
+    echo "net.ipv4.ip_forward is set to 0"
+    echo "Consider applying the following changes to enable IP forwarding:"
+    echo '  sysctl -w net.ipv4.ip_forward=1'  # Suggest command to enable IP forwarding temporarily
+    echo '  echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf'  # Suggest command to persist the change
 else
-    good "IP forwarding is enabled."
+    echo "IP forwarding is enabled."
 fi
-
 
 # Verify if the Docker CE repository is enabled
 if yum repolist enabled | grep -q "docker-ce-stable"; then
