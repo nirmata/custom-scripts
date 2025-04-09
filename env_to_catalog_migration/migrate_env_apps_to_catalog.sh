@@ -14,14 +14,20 @@ CLUSTER_NAME=$4
 # Remove cluster suffix from environment name to get catalog name
 CATALOG_NAME=$(echo "$SOURCE_ENV" | sed "s/-${CLUSTER_NAME}$//")
 
-# After the initial configuration section, add logging setup
-TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-LOG_FILE="custom-scripts/env_to_catalog_migration/migration_logs/migration_${TIMESTAMP}.log"
+# Change logging setup to use cluster name instead of timestamp
+LOG_FILE="custom-scripts/env_to_catalog_migration/migration_logs/migration_${CLUSTER_NAME}.log"
 
 # Function to log messages to both console and file
 log_message() {
     echo "$1"
     echo "$1" >> "$LOG_FILE"
+}
+
+# Function to check if application exists
+check_application_exists() {
+    local app_name=$1
+    local response=$(curl -s -H "Authorization: NIRMATA-API $TOKEN" "$API_ENDPOINT/catalog/api/applications?fields=id,name" | jq -r ".[] | select(.name == \"$app_name\")")
+    echo "$response"
 }
 
 # Initialize log file with header
@@ -31,6 +37,7 @@ Date: $(date)
 Source Environment: $SOURCE_ENV
 Target Catalog: $CATALOG_NAME
 API Endpoint: $API_ENDPOINT
+Cluster: $CLUSTER_NAME
 
 Migration Details:
 =====================================
@@ -111,7 +118,7 @@ echo "$APPS_RESPONSE" | jq -c '.[]' | while read -r app; do
     
     APP_NAME=$(echo "$app" | jq -r '.name')
     APP_ID=$(echo "$app" | jq -r '.id')
-    log_message "Processing application: $APP_NAME"
+    log_message "\nProcessing application: $APP_NAME"
     
     # Get detailed application info
     APP_DETAILS=$(curl -s -H "Authorization: NIRMATA-API $TOKEN" "$API_ENDPOINT/environments/api/applications/$APP_ID")
@@ -124,10 +131,30 @@ echo "$APPS_RESPONSE" | jq -c '.[]' | while read -r app; do
     fi
 
     GIT_UPSTREAM_ID=$(echo "$APP_DETAILS" | jq -r '.gitUpstream[0].id')
-    echo "Detected Git-based application with upstream ID: $GIT_UPSTREAM_ID"
+    log_message "✓ Detected Git-based application with upstream ID: $GIT_UPSTREAM_ID"
     
+    # Create name for the application using cluster name
     UNIQUE_APP_NAME="${APP_NAME}-${CLUSTER_NAME}"
-    echo "Will create as: $UNIQUE_APP_NAME"
+    
+    # Check if application already exists
+    EXISTING_APP=$(check_application_exists "$UNIQUE_APP_NAME")
+    if [ ! -z "$EXISTING_APP" ]; then
+        EXISTING_APP_ID=$(echo "$EXISTING_APP" | jq -r '.id')
+        log_message "⚠ Application $UNIQUE_APP_NAME already exists with ID: $EXISTING_APP_ID"
+        log_message "  Skipping creation to avoid conflicts"
+        skip_count=$((skip_count + 1))
+        continue
+    fi
+    
+    log_message "\nMigrating application:"
+    log_message "===================="
+    log_message "Source:"
+    log_message "  - Environment: $SOURCE_ENV"
+    log_message "  - Application: $APP_NAME"
+    log_message "  - Git Upstream ID: $GIT_UPSTREAM_ID"
+    log_message "\nTarget:"
+    log_message "  - Catalog: $CATALOG_NAME"
+    log_message "  - New Name: $UNIQUE_APP_NAME"
     
     # Create base application in catalog
     APP_PAYLOAD=$(cat <<EOF
@@ -141,40 +168,53 @@ echo "$APPS_RESPONSE" | jq -c '.[]' | while read -r app; do
         "childRelation": "applications"
     },
     "catalog": "$CATALOG_ID",
-    "description": "Migrated from environment $SOURCE_ENV",
+    "description": "Migrated from environment $SOURCE_ENV (Original: $APP_NAME)",
     "upstreamType": "git",
     "namespace": ""
 }
 EOF
 )
     
-    echo "Creating application with payload: $APP_PAYLOAD"
+    log_message "Creating application with payload: $APP_PAYLOAD"
     APP_RESPONSE=$(curl -s -H "Authorization: NIRMATA-API $TOKEN" -H "Content-Type: application/json" -d "$APP_PAYLOAD" "$API_ENDPOINT/catalog/api/applications")
-    echo "Application creation response: $APP_RESPONSE"
     
-    NEW_APP_ID=$(echo "$APP_RESPONSE" | jq -r '.id')
-    if [ -z "$NEW_APP_ID" ] || [ "$NEW_APP_ID" = "null" ]; then
-        echo "Error: Failed to get new application ID for $UNIQUE_APP_NAME"
+    # Check for application creation errors
+    if echo "$APP_RESPONSE" | jq -e '.errors' > /dev/null; then
+        ERROR_MSG=$(echo "$APP_RESPONSE" | jq -r '.message')
+        log_message "✗ Failed to create application: $ERROR_MSG"
+        fail_count=$((fail_count + 1))
         continue
     fi
     
-    echo "Created new application with ID: $NEW_APP_ID"
+    NEW_APP_ID=$(echo "$APP_RESPONSE" | jq -r '.id')
+    if [ -z "$NEW_APP_ID" ] || [ "$NEW_APP_ID" = "null" ]; then
+        log_message "✗ Failed to get new application ID for $UNIQUE_APP_NAME"
+        fail_count=$((fail_count + 1))
+        continue
+    fi
     
-    # Get Git upstream details
+    log_message "✓ Created new application with ID: $NEW_APP_ID"
+    
+    # Get Git upstream details with error handling
     GIT_DETAILS=$(curl -s -H "Authorization: NIRMATA-API $TOKEN" "$API_ENDPOINT/environments/api/gitupstreams/$GIT_UPSTREAM_ID")
+    if [ $? -ne 0 ] || [ -z "$GIT_DETAILS" ]; then
+        log_message "✗ Failed to get Git upstream details"
+        fail_count=$((fail_count + 1))
+        continue
+    fi
     
-    # Extract Git configuration
-    GIT_URL=$(echo "$GIT_DETAILS" | jq -r '.repository')
-    GIT_BRANCH=$(echo "$GIT_DETAILS" | jq -r '.branch')
-    GIT_PATH=$(echo "$GIT_DETAILS" | jq -r '.directoryList[0]')
+    # Extract Git details
+    REPO_URL=$(echo "$GIT_DETAILS" | jq -r '.repository')
+    BRANCH=$(echo "$GIT_DETAILS" | jq -r '.branch')
+    PATH_VALUE=$(echo "$GIT_DETAILS" | jq -r '.path')
     
-    echo "Git Details:"
-    echo "  Repository: $GIT_URL"
-    echo "  Branch: $GIT_BRANCH"
-    echo "  Path: $GIT_PATH"
+    log_message "Git Details:"
+    log_message "  Repository: $REPO_URL"
+    log_message "  Branch: $BRANCH"
+    log_message "  Path: $PATH_VALUE"
     
-    # Create GitUpstream for the application
-    GIT_PAYLOAD=$(cat <<EOF
+    # Create GitUpstream with error handling
+    GIT_UPSTREAM_PAYLOAD=$(cat <<EOF
 {
     "modelIndex": "GitUpstream",
     "parent": {
@@ -183,37 +223,35 @@ EOF
         "modelIndex": "Application",
         "childRelation": "gitUpstream"
     },
-    "repository": "$GIT_URL",
-    "branch": "$GIT_BRANCH",
-    "path": "$GIT_PATH",
+    "repository": "$REPO_URL",
+    "branch": "$BRANCH",
+    "path": "$PATH_VALUE",
     "includeList": ["*.yaml", "*.yml"],
     "application": "$NEW_APP_ID"
 }
 EOF
 )
     
-    echo "Creating GitUpstream with payload: $GIT_PAYLOAD"
-    GIT_RESPONSE=$(curl -s -X POST -H "Authorization: NIRMATA-API $TOKEN" -H "Content-Type: application/json" -d "$GIT_PAYLOAD" "$API_ENDPOINT/catalog/api/applications/$NEW_APP_ID/gitUpstream")
-    echo "GitUpstream creation response: $GIT_RESPONSE"
-
-    # After successful creation of application and GitUpstream
-    if [ $? -eq 0 ]; then
-        success_count=$((success_count + 1))
-        log_message "✓ Successfully migrated Git-based application $APP_NAME to $UNIQUE_APP_NAME"
-    else
-        fail_count=$((fail_count + 1))
-        log_message "✗ Failed to migrate application $APP_NAME"
-    fi
+    log_message "Creating GitUpstream with payload: $GIT_UPSTREAM_PAYLOAD"
+    GIT_UPSTREAM_RESPONSE=$(curl -s -H "Authorization: NIRMATA-API $TOKEN" -H "Content-Type: application/json" -d "$GIT_UPSTREAM_PAYLOAD" "$API_ENDPOINT/catalog/api/gitupstreams")
     
-    log_message "----------------------------------------"
+    log_message "\nMigration Result: ✓ SUCCESS"
+    log_message "  - New Application ID: $NEW_APP_ID"
+    log_message "  - Git Repository: $REPO_URL"
+    log_message "  - Branch: $BRANCH"
+    log_message "  - Path: $PATH_VALUE"
+    
+    log_message "\n----------------------------------------\n"
 done
 
+# Update summary with more details
 log_message "\nMigration Summary:"
 log_message "=================="
+log_message "Environment: $SOURCE_ENV -> Catalog: $CATALOG_NAME"
 log_message "Total applications processed: $((processed_count))"
 log_message "Successfully migrated: $((success_count))"
-log_message "Skipped (non-Git): $((skip_count))"
-log_message "Failed: $((fail_count))"
-log_message "\nLog file created at: $LOG_FILE"
+log_message "Skipped applications: $((skip_count))"
+log_message "Failed migrations: $((fail_count))"
+log_message "\nLog file: $LOG_FILE"
 
-echo "Migration process completed."
+echo "Migration process completed. Check $LOG_FILE for detailed report."
