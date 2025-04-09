@@ -1,0 +1,29 @@
+2025-04-09 15:55:37 - Starting catalog reference update process
+2025-04-09 15:55:37 - API Endpoint: https://pe420.nirmata.co
+2025-04-09 15:55:37 - Source Cluster: 123-app-migration
+2025-04-09 15:55:37 - Target Cluster: 129-app-migration
+2025-04-09 15:55:42 - Looking for target environment: default-129-app-migration
+2025-04-09 15:55:42 - Processing environment pair: default-123-app-migration -> default-129-app-migration
+2025-04-09 15:55:46 - Looking for target environment: kube-node-lease-129-app-migration
+2025-04-09 15:55:46 - Processing environment pair: kube-node-lease-123-app-migration -> kube-node-lease-129-app-migration
+2025-04-09 15:55:50 - Looking for target environment: kube-system-129-app-migration
+2025-04-09 15:55:50 - Processing environment pair: kube-system-123-app-migration -> kube-system-129-app-migration
+2025-04-09 15:55:54 - Looking for target environment: nirmata-129-app-migration
+2025-04-09 15:55:55 - Processing environment pair: nirmata-123-app-migration -> nirmata-129-app-migration
+2025-04-09 15:55:59 - Processing application nirmata
+2025-04-09 15:55:59 - Warning: No catalog application ID found in source application, checking catalog
+2025-04-09 15:56:01 - Error: Failed to find catalog application ID for nirmata
+2025-04-09 15:56:01 - Looking for target environment: kube-public-129-app-migration
+2025-04-09 15:56:01 - Processing environment pair: kube-public-123-app-migration -> kube-public-129-app-migration
+2025-04-09 15:56:05 - Looking for target environment: ingress-haproxy-129-app-migration
+2025-04-09 15:56:06 - Processing environment pair: ingress-haproxy-123-app-migration -> ingress-haproxy-129-app-migration
+2025-04-09 15:56:09 - Looking for target environment: nginx-129-app-migration
+2025-04-09 15:56:09 - Processing environment pair: nginx-123-app-migration -> nginx-129-app-migration
+2025-04-09 15:56:13 - No matching application found in target environment for gitops-nginx
+2025-04-09 15:56:13 - Processing application nginx
+2025-04-09 15:56:13 - Warning: No catalog application ID found in source application, checking catalog
+2025-04-09 15:56:15 - Found catalog application ID: dbcb8389-7df3-44d8-b7b3-16ac8c3c898c
+2025-04-09 15:56:17 - Updating application nginx to use catalog reference dbcb8389-7df3-44d8-b7b3-16ac8c3c898c
+2025-04-09 15:56:19 - Successfully updated application nginx in environment e0cb834f-4539-4605-b810-8d490b406508
+2025-04-09 15:56:19 - Catalog reference update process completed
+2025-04-09 15:56:19 - Log file: logs/catalog_reference_update_20250409_155537.log

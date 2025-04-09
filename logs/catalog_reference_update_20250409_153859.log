@@ -1,0 +1,8 @@
+2025-04-09 15:38:59 - === Starting Catalog Reference Update ===
+2025-04-09 15:38:59 - API Endpoint: https://pe420.nirmata.co
+2025-04-09 15:38:59 - Source Cluster: 123-app-migration
+2025-04-09 15:38:59 - Target Cluster: 129-app-migration
+2025-04-09 15:38:59 - \nGetting source environments...
+2025-04-09 15:39:01 - \nGetting target environments...
+2025-04-09 15:39:04 - \n=== Catalog Reference Update Complete ===
+2025-04-09 15:39:04 - Log file: logs/catalog_reference_update_20250409_153859.log

@@ -1,0 +1,28 @@
+2025-04-09 15:48:15 - Starting catalog reference update process
+2025-04-09 15:48:15 - API Endpoint: https://pe420.nirmata.co
+2025-04-09 15:48:15 - Source Cluster: 123-app-migration
+2025-04-09 15:48:15 - Target Cluster: 129-app-migration
+2025-04-09 15:48:19 - Looking for target environment: default-129-app-migration
+2025-04-09 15:48:19 - Processing environment pair: default-123-app-migration -> default-129-app-migration
+2025-04-09 15:48:21 - No applications found in source environment default-123-app-migration
+2025-04-09 15:48:21 - Looking for target environment: kube-node-lease-129-app-migration
+2025-04-09 15:48:21 - Processing environment pair: kube-node-lease-123-app-migration -> kube-node-lease-129-app-migration
+2025-04-09 15:48:23 - No applications found in source environment kube-node-lease-123-app-migration
+2025-04-09 15:48:23 - Looking for target environment: kube-system-129-app-migration
+2025-04-09 15:48:23 - Processing environment pair: kube-system-123-app-migration -> kube-system-129-app-migration
+2025-04-09 15:48:25 - No applications found in source environment kube-system-123-app-migration
+2025-04-09 15:48:25 - Looking for target environment: nirmata-129-app-migration
+2025-04-09 15:48:25 - Processing environment pair: nirmata-123-app-migration -> nirmata-129-app-migration
+2025-04-09 15:48:30 - No matching application found in target environment for nirmata
+2025-04-09 15:48:30 - Looking for target environment: kube-public-129-app-migration
+2025-04-09 15:48:30 - Processing environment pair: kube-public-123-app-migration -> kube-public-129-app-migration
+2025-04-09 15:48:32 - No applications found in source environment kube-public-123-app-migration
+2025-04-09 15:48:32 - Looking for target environment: ingress-haproxy-129-app-migration
+2025-04-09 15:48:32 - Processing environment pair: ingress-haproxy-123-app-migration -> ingress-haproxy-129-app-migration
+2025-04-09 15:48:34 - No applications found in source environment ingress-haproxy-123-app-migration
+2025-04-09 15:48:34 - Looking for target environment: nginx-129-app-migration
+2025-04-09 15:48:34 - Processing environment pair: nginx-123-app-migration -> nginx-129-app-migration
+2025-04-09 15:48:38 - No matching application found in target environment for gitops-nginx
+2025-04-09 15:48:38 - No matching application found in target environment for nginx
+2025-04-09 15:48:38 - Catalog reference update process completed
+2025-04-09 15:48:38 - Log file: logs/catalog_reference_update_20250409_154815.log
