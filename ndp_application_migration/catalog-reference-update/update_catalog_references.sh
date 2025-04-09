@@ -122,6 +122,39 @@ get_catalog_application() {
     return 1
 }
 
+# Function to find target environment
+find_target_environment() {
+    local source_env_name=$1
+    local target_envs=$2
+    local target_env_name=""
+
+    # Extract base name and create target name - handle different naming patterns
+    if [[ "$source_env_name" == *"-${SOURCE_CLUSTER}" ]]; then
+        # Standard pattern: name-clusterName
+        base_name=${source_env_name%-$SOURCE_CLUSTER}
+        target_env_name="${base_name}-${TARGET_CLUSTER}"
+    elif [[ "$source_env_name" == *"${SOURCE_CLUSTER}"* ]]; then
+        # Other patterns containing cluster name
+        base_name=$(echo "$source_env_name" | sed "s/${SOURCE_CLUSTER}//g" | sed 's/--*/-/g' | sed 's/-$//')
+        target_env_name="${base_name}-${TARGET_CLUSTER}"
+    else
+        # No cluster name in environment name
+        base_name="$source_env_name"
+        target_env_name="${base_name}-${TARGET_CLUSTER}"
+    fi
+
+    # Find matching target environment
+    local target_env
+    target_env=$(echo "$target_envs" | jq -r --arg name "$target_env_name" '.[] | select(.name == $name)')
+    
+    if [ -n "$target_env" ] && [ "$target_env" != "null" ]; then
+        echo "$target_env"
+        return 0
+    fi
+    
+    return 1
+}
+
 # Function to update catalog application reference
 update_catalog_reference() {
     local target_env_id=$1
@@ -140,6 +173,12 @@ update_catalog_reference() {
     
     if [ $? -ne 0 ]; then
         log_message "Error: Failed to update application $app_name"
+        return 1
+    fi
+    
+    # Verify the update was successful
+    if ! echo "$response" | jq empty 2>/dev/null; then
+        log_message "Error: Invalid JSON response from update API"
         return 1
     fi
     
@@ -256,48 +295,25 @@ else
                 log_message "Skipping system/processed environment: $source_env_name"
                 continue
             fi
-
-            # Extract base name and create target name - handle different naming patterns
-            if [[ "$source_env_name" == *"-${SOURCE_CLUSTER}" ]]; then
-                # Standard pattern: name-clusterName
-                base_name=${source_env_name%-$SOURCE_CLUSTER}
-                target_env_name="${base_name}-${TARGET_CLUSTER}"
-            elif [[ "$source_env_name" == *"${SOURCE_CLUSTER}"* ]]; then
-                # Other patterns containing cluster name
-                base_name=$(echo "$source_env_name" | sed "s/${SOURCE_CLUSTER}//g" | sed 's/--*/-/g' | sed 's/-$//')
-                target_env_name="${base_name}-${TARGET_CLUSTER}"
-            else
-                # No cluster name in environment name
-                base_name="$source_env_name"
-                target_env_name="${base_name}-${TARGET_CLUSTER}"
-            fi
             
-            log_message "Looking for target environment: $target_env_name"
+            log_message "Processing source environment: $source_env_name"
             
-            # Find matching target environment
-            target_env=$(echo "$target_envs" | while read -r env; do
-                if [ -z "$env" ] || [ "$env" = "null" ]; then
-                    continue
-                fi
-                env_name=$(echo "$env" | jq -r '.name // empty')
-                if [ "$env_name" = "$target_env_name" ]; then
-                    echo "$env"
-                    break
-                fi
-            done)
-            
-            if [ -z "$target_env" ]; then
-                log_message "No matching target environment found for $source_env_name (looking for $target_env_name)"
+            # Find target environment
+            target_env=$(find_target_environment "$source_env_name" "$target_envs")
+            if [ $? -ne 0 ]; then
+                log_message "No matching target environment found for $source_env_name"
                 continue
             fi
             
             target_env_id=$(echo "$target_env" | jq -r '.id // empty')
-            if [ -z "$target_env_id" ]; then
+            target_env_name=$(echo "$target_env" | jq -r '.name // empty')
+            
+            if [ -z "$target_env_id" ] || [ -z "$target_env_name" ]; then
                 log_message "Error: Invalid target environment data"
                 continue
             fi
             
-            log_message "Processing environment pair: $source_env_name -> $target_env_name"
+            log_message "Found target environment: $target_env_name"
             
             # Get applications from both source and target environments
             source_apps=$(get_catalog_app_details "$source_env_id")
@@ -332,8 +348,15 @@ else
                     continue
                 fi
                 
+                # Get catalog application ID
+                catalog_app_id=$(get_catalog_application "$source_app_name")
+                if [ -z "$catalog_app_id" ]; then
+                    log_message "No catalog application found for $source_app_name"
+                    continue
+                fi
+                
                 log_message "Processing application $source_app_name"
-                update_catalog_reference "$target_env_id" "$source_app_name" "$source_app" "$target_app"
+                update_catalog_reference "$target_env_id" "$source_app_name" "$catalog_app_id"
             done
         done
     fi
