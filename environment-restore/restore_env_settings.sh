@@ -11,7 +11,12 @@ TOKEN=$2
 SOURCE_CLUSTER=$3
 DEST_CLUSTER=$4
 
-echo "Copying settings from environments in cluster $SOURCE_CLUSTER to $DEST_CLUSTER"
+# Function to log messages with timestamp
+log_message() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
+}
+
+log_message "Copying settings from environments in cluster $SOURCE_CLUSTER to $DEST_CLUSTER"
 
 # Get all environments
 ENVIRONMENTS=$(curl -s -H "Accept: application/json" \
@@ -28,12 +33,12 @@ SOURCE_CLUSTER_ID=$(echo "$CLUSTERS" | jq -r ".[] | select(.name == \"$SOURCE_CL
 DEST_CLUSTER_ID=$(echo "$CLUSTERS" | jq -r ".[] | select(.name == \"$DEST_CLUSTER\") | .id")
 
 if [ -z "$SOURCE_CLUSTER_ID" ] || [ -z "$DEST_CLUSTER_ID" ]; then
-    echo "Error: Could not find cluster IDs"
+    log_message "Error: Could not find cluster IDs"
     exit 1
 fi
 
-echo "Source cluster ID: $SOURCE_CLUSTER_ID"
-echo "Destination cluster ID: $DEST_CLUSTER_ID"
+log_message "Source cluster ID: $SOURCE_CLUSTER_ID"
+log_message "Destination cluster ID: $DEST_CLUSTER_ID"
 
 # Get environments from source cluster
 SOURCE_ENVIRONMENTS=$(echo "$ENVIRONMENTS" | jq -r --arg cluster_id "$SOURCE_CLUSTER_ID" '.[] | select(.cluster | any(.id == $cluster_id))')
@@ -58,13 +63,13 @@ echo "$SOURCE_ENVIRONMENTS" | jq -c '.' | while read -r env; do
     # Create destination environment name
     DEST_ENV_NAME="${ENV_NAME%$SOURCE_CLUSTER}$DEST_CLUSTER"
     
-    echo "Processing environment: $ENV_NAME -> $DEST_ENV_NAME"
+    log_message "Processing environment: $ENV_NAME -> $DEST_ENV_NAME"
     
     # Check if destination environment exists
     DEST_ENV=$(echo "$ENVIRONMENTS" | jq -r ".[] | select(.name == \"$DEST_ENV_NAME\")")
     
     if [ -z "$DEST_ENV" ]; then
-        echo "Creating destination environment $DEST_ENV_NAME"
+        log_message "Creating destination environment $DEST_ENV_NAME"
         # Create destination environment
         DEST_ENV_RESPONSE=$(curl -s -X POST \
             -H "Content-Type: application/json" \
@@ -75,20 +80,20 @@ echo "$SOURCE_ENVIRONMENTS" | jq -c '.' | while read -r env; do
         
         DEST_ENV_ID=$(echo "$DEST_ENV_RESPONSE" | jq -r '.id')
         if [ -z "$DEST_ENV_ID" ]; then
-            echo "Failed to create destination environment"
+            log_message "Failed to create destination environment"
             continue
         fi
     else
         DEST_ENV_ID=$(echo "$DEST_ENV" | jq -r '.id')
     fi
     
-    echo "Source ID: $SOURCE_ENV_ID"
-    echo "Destination ID: $DEST_ENV_ID"
+    log_message "Source ID: $SOURCE_ENV_ID"
+    log_message "Destination ID: $DEST_ENV_ID"
     
     # Copy resource type
     RESOURCE_TYPE=$(echo "$env" | jq -r '.resourceType')
     if [ ! -z "$RESOURCE_TYPE" ] && [ "$RESOURCE_TYPE" != "null" ]; then
-        echo "Copying resource type: $RESOURCE_TYPE"
+        log_message "Copying resource type: $RESOURCE_TYPE"
         curl -s -X PUT \
             -H "Content-Type: application/json" \
             -H "Accept: application/json" \
@@ -97,103 +102,179 @@ echo "$SOURCE_ENVIRONMENTS" | jq -c '.' | while read -r env; do
             "${API_ENDPOINT}/environments/api/environments/$DEST_ENV_ID"
     fi
     
-    # Get source ACL ID
+    # Copy ACLs and permissions
     SOURCE_ACL_ID=$(echo "$env" | jq -r '.accessControlList[0].id')
     if [ -z "$SOURCE_ACL_ID" ] || [ "$SOURCE_ACL_ID" = "null" ]; then
-        echo "No access control list found in source environment"
-        continue
-    fi
-
-    echo "Source ACL ID: $SOURCE_ACL_ID"
-
-    # Get destination ACL ID
-    DEST_ACL_ID=$(curl -s -H "Accept: application/json" \
-        -H "Authorization: NIRMATA-API $TOKEN" \
-        "${API_ENDPOINT}/environments/api/environments/$DEST_ENV_ID" | jq -r '.accessControlList[0].id')
-
-    if [ -z "$DEST_ACL_ID" ] || [ "$DEST_ACL_ID" = "null" ]; then
-        echo "No access control list found in destination environment"
-        continue
-    fi
-
-    echo "Destination ACL ID: $DEST_ACL_ID"
-
-    # Get ACL details
-    SOURCE_ACLS=$(curl -s -H "Accept: application/json" \
-        -H "Authorization: NIRMATA-API $TOKEN" \
-        "${API_ENDPOINT}/environments/api/accessControlLists/$SOURCE_ACL_ID")
-
-    # Get access controls
-    ACCESS_CONTROLS=$(echo "$SOURCE_ACLS" | jq -r '.accessControls[]')
-
-    if [ ! -z "$ACCESS_CONTROLS" ]; then
-        echo "$ACCESS_CONTROLS" | while read -r control_id; do
-            # Get control details
-            CONTROL_DETAILS=$(curl -s -H "Accept: application/json" \
-                -H "Authorization: NIRMATA-API $TOKEN" \
-                "${API_ENDPOINT}/environments/api/accessControls/$control_id")
+        log_message "No access control list found in source environment"
+    else
+        log_message "Source ACL ID: $SOURCE_ACL_ID"
+        
+        # Get source ACL details
+        SOURCE_ACL_DETAILS=$(curl -s -H "Accept: application/json" \
+            -H "Authorization: NIRMATA-API $TOKEN" \
+            "${API_ENDPOINT}/environments/api/accessControlLists/$SOURCE_ACL_ID")
+        
+        # Get destination ACL ID
+        DEST_ENV_DETAILS=$(curl -s -H "Accept: application/json" \
+            -H "Authorization: NIRMATA-API $TOKEN" \
+            "${API_ENDPOINT}/environments/api/environments/$DEST_ENV_ID")
+        
+        DEST_ACL_ID=$(echo "$DEST_ENV_DETAILS" | jq -r '.accessControlList[0].id')
+        
+        if [ -z "$DEST_ACL_ID" ] || [ "$DEST_ACL_ID" = "null" ]; then
+            log_message "No access control list found in destination environment"
+        else
+            log_message "Destination ACL ID: $DEST_ACL_ID"
             
-            TEAM_ID=$(echo "$CONTROL_DETAILS" | jq -r '.entityId')
-            TEAM_NAME=$(echo "$CONTROL_DETAILS" | jq -r '.entityName')
-            PERMISSION=$(echo "$CONTROL_DETAILS" | jq -r '.permission')
+            # Get and copy access controls
+            ACCESS_CONTROLS=$(echo "$SOURCE_ACL_DETAILS" | jq -r '.accessControls[]?.id')
             
-            if [ ! -z "$TEAM_ID" ] && [ ! -z "$TEAM_NAME" ] && [ ! -z "$PERMISSION" ]; then
-                echo "Creating ACL for team $TEAM_NAME ($TEAM_ID) with permission $PERMISSION"
-                curl -s -X POST \
-                    -H "Content-Type: application/json" \
-                    -H "Accept: application/json" \
-                    -H "Authorization: NIRMATA-API $TOKEN" \
-                    -d "{\"entityId\":\"$TEAM_ID\",\"entityType\":\"team\",\"permission\":\"$PERMISSION\",\"entityName\":\"$TEAM_NAME\"}" \
-                    "${API_ENDPOINT}/environments/api/accessControlLists/$DEST_ACL_ID/accessControls"
+            if [ ! -z "$ACCESS_CONTROLS" ] && [ "$ACCESS_CONTROLS" != "null" ]; then
+                echo "$ACCESS_CONTROLS" | while read -r control_id; do
+                    if [ ! -z "$control_id" ] && [ "$control_id" != "null" ]; then
+                        # Get control details
+                        CONTROL_DETAILS=$(curl -s -H "Accept: application/json" \
+                            -H "Authorization: NIRMATA-API $TOKEN" \
+                            "${API_ENDPOINT}/environments/api/accessControls/$control_id")
+                        
+                        TEAM_ID=$(echo "$CONTROL_DETAILS" | jq -r '.entityId')
+                        TEAM_NAME=$(echo "$CONTROL_DETAILS" | jq -r '.entityName')
+                        PERMISSION=$(echo "$CONTROL_DETAILS" | jq -r '.permission')
+                        
+                        if [ ! -z "$TEAM_ID" ] && [ ! -z "$TEAM_NAME" ] && [ ! -z "$PERMISSION" ]; then
+                            log_message "Creating ACL for team $TEAM_NAME ($TEAM_ID) with permission $PERMISSION"
+                            ACL_RESPONSE=$(curl -s -X POST \
+                                -H "Content-Type: application/json" \
+                                -H "Accept: application/json" \
+                                -H "Authorization: NIRMATA-API $TOKEN" \
+                                -d "{\"entityId\":\"$TEAM_ID\",\"entityType\":\"team\",\"permission\":\"$PERMISSION\",\"entityName\":\"$TEAM_NAME\"}" \
+                                "${API_ENDPOINT}/environments/api/accessControlLists/$DEST_ACL_ID/accessControls")
+                            
+                            # Check if ACL was created successfully
+                            if [ ! -z "$ACL_RESPONSE" ]; then
+                                log_message "Successfully created ACL for team $TEAM_NAME"
+                            else
+                                log_message "Failed to create ACL for team $TEAM_NAME"
+                            fi
+                        else
+                            log_message "Missing required ACL information for control ID: $control_id"
+                        fi
+                    fi
+                done
+            else
+                log_message "No access controls found in source ACL"
             fi
-        done
+        fi
     fi
     
     # Copy resource quotas
-    echo "Copying resource quotas..."
-    SOURCE_QUOTAS=$(curl -s -H "Authorization: NIRMATA-API ${TOKEN}" "${API_ENDPOINT}/environments/api/resourceQuota/${SOURCE_QUOTA_ID}" | jq -r '.')
-    if [[ ! -z "$SOURCE_QUOTAS" ]]; then
-        QUOTA_NAME=$(echo "$SOURCE_QUOTAS" | jq -r '.name')
-        QUOTA_SPEC=$(echo "$SOURCE_QUOTAS" | jq -r '.spec')
-        
-        if [[ ! -z "$QUOTA_NAME" && ! -z "$QUOTA_SPEC" ]]; then
-            QUOTA_PAYLOAD=$(cat <<EOF
-{
-  "name": "${QUOTA_NAME}",
-  "spec": ${QUOTA_SPEC}
-}
-EOF
-)
-            echo "Creating quota with payload: ${QUOTA_PAYLOAD}"
-            curl -s -X POST -H "Authorization: NIRMATA-API ${TOKEN}" -H "Content-Type: application/json" \
-                "${API_ENDPOINT}/environments/api/resourceQuota?parent=${DEST_ENV_ID}" \
-                -d "${QUOTA_PAYLOAD}"
-        fi
+    log_message "Copying resource quotas..."
+    SOURCE_QUOTAS=$(curl -s -H "Authorization: NIRMATA-API ${TOKEN}" \
+        "${API_ENDPOINT}/environments/api/environments/${SOURCE_ENV_ID}/resourceQuota" | jq -r '.[]')
+    
+    if [ ! -z "$SOURCE_QUOTAS" ]; then
+        echo "$SOURCE_QUOTAS" | jq -c '.' | while read -r quota; do
+            QUOTA_NAME=$(echo "$quota" | jq -r '.name')
+            QUOTA_SPEC=$(echo "$quota" | jq -r '.spec')
+            
+            if [ ! -z "$QUOTA_NAME" ] && [ ! -z "$QUOTA_SPEC" ] && [ "$QUOTA_SPEC" != "null" ]; then
+                log_message "Creating quota: $QUOTA_NAME"
+                QUOTA_PAYLOAD="{\"name\":\"${QUOTA_NAME}\",\"spec\":${QUOTA_SPEC}}"
+                QUOTA_RESPONSE=$(curl -s -X POST \
+                    -H "Content-Type: application/json" \
+                    -H "Authorization: NIRMATA-API ${TOKEN}" \
+                    "${API_ENDPOINT}/environments/api/environments/${DEST_ENV_ID}/resourceQuota" \
+                    -d "${QUOTA_PAYLOAD}")
+                
+                if [ ! -z "$QUOTA_RESPONSE" ]; then
+                    log_message "Successfully created quota $QUOTA_NAME"
+                else
+                    log_message "Failed to create quota $QUOTA_NAME"
+                fi
+            fi
+        done
+    else
+        log_message "No resource quotas found in source environment"
     fi
     
     # Copy limit ranges
-    echo "Copying limit ranges..."
-    SOURCE_LIMITS=$(curl -s -H "Authorization: NIRMATA-API ${TOKEN}" "${API_ENDPOINT}/environments/api/limitRanges/${SOURCE_LIMIT_ID}" | jq -r '.')
-    if [[ ! -z "$SOURCE_LIMITS" ]]; then
-        LIMIT_NAME=$(echo "$SOURCE_LIMITS" | jq -r '.name')
-        LIMIT_SPEC=$(echo "$SOURCE_LIMITS" | jq -r '.spec')
-        
-        if [[ ! -z "$LIMIT_NAME" && ! -z "$LIMIT_SPEC" ]]; then
-            LIMIT_PAYLOAD=$(cat <<EOF
-{
-  "name": "${LIMIT_NAME}",
-  "spec": ${LIMIT_SPEC}
-}
-EOF
-)
-            echo "Creating limit range with payload: ${LIMIT_PAYLOAD}"
-            curl -s -X POST -H "Authorization: NIRMATA-API ${TOKEN}" -H "Content-Type: application/json" \
-                "${API_ENDPOINT}/environments/api/limitRanges?parent=${DEST_ENV_ID}" \
-                -d "${LIMIT_PAYLOAD}"
-        fi
+    log_message "Copying limit ranges..."
+    SOURCE_LIMITS=$(curl -s -H "Authorization: NIRMATA-API ${TOKEN}" \
+        "${API_ENDPOINT}/environments/api/environments/${SOURCE_ENV_ID}/limitRanges" | jq -r '.[]')
+    
+    if [ ! -z "$SOURCE_LIMITS" ]; then
+        echo "$SOURCE_LIMITS" | jq -c '.' | while read -r limit; do
+            LIMIT_NAME=$(echo "$limit" | jq -r '.name')
+            LIMIT_SPEC=$(echo "$limit" | jq -r '.spec')
+            
+            if [ ! -z "$LIMIT_NAME" ] && [ ! -z "$LIMIT_SPEC" ] && [ "$LIMIT_SPEC" != "null" ]; then
+                log_message "Creating limit range: $LIMIT_NAME"
+                LIMIT_PAYLOAD="{\"name\":\"${LIMIT_NAME}\",\"spec\":${LIMIT_SPEC}}"
+                LIMIT_RESPONSE=$(curl -s -X POST \
+                    -H "Content-Type: application/json" \
+                    -H "Authorization: NIRMATA-API ${TOKEN}" \
+                    "${API_ENDPOINT}/environments/api/environments/${DEST_ENV_ID}/limitRanges" \
+                    -d "${LIMIT_PAYLOAD}")
+                
+                if [ ! -z "$LIMIT_RESPONSE" ]; then
+                    log_message "Successfully created limit range $LIMIT_NAME"
+                else
+                    log_message "Failed to create limit range $LIMIT_NAME"
+                fi
+            fi
+        done
+    else
+        log_message "No limit ranges found in source environment"
     fi
     
-    echo "Settings copy completed for $ENV_NAME"
+    # Copy labels
+    log_message "Copying labels..."
+    LABELS=$(echo "$env" | jq -r '.labels')
+    if [ ! -z "$LABELS" ] && [ "$LABELS" != "null" ]; then
+        log_message "Updating labels: $LABELS"
+        curl -s -X PUT \
+            -H "Content-Type: application/json" \
+            -H "Accept: application/json" \
+            -H "Authorization: NIRMATA-API $TOKEN" \
+            -d "{\"labels\":$LABELS}" \
+            "${API_ENDPOINT}/environments/api/environments/$DEST_ENV_ID"
+    fi
+    
+    # Copy update policies
+    log_message "Copying update policies..."
+    UPDATE_POLICIES=$(echo "$env" | jq -r '.updatePolicy[]?.id')
+    if [ ! -z "$UPDATE_POLICIES" ] && [ "$UPDATE_POLICIES" != "null" ]; then
+        echo "$UPDATE_POLICIES" | while read -r policy_id; do
+            if [ ! -z "$policy_id" ] && [ "$policy_id" != "null" ]; then
+                POLICY_DETAILS=$(curl -s -H "Accept: application/json" \
+                    -H "Authorization: NIRMATA-API $TOKEN" \
+                    "${API_ENDPOINT}/environments/api/updatePolicies/$policy_id")
+                
+                POLICY_NAME=$(echo "$POLICY_DETAILS" | jq -r '.name')
+                POLICY_SPEC=$(echo "$POLICY_DETAILS" | jq -r '.spec')
+                
+                if [ ! -z "$POLICY_NAME" ] && [ ! -z "$POLICY_SPEC" ] && [ "$POLICY_SPEC" != "null" ]; then
+                    log_message "Creating update policy: $POLICY_NAME"
+                    POLICY_PAYLOAD="{\"name\":\"${POLICY_NAME}\",\"spec\":${POLICY_SPEC}}"
+                    POLICY_RESPONSE=$(curl -s -X POST \
+                        -H "Content-Type: application/json" \
+                        -H "Authorization: NIRMATA-API ${TOKEN}" \
+                        "${API_ENDPOINT}/environments/api/updatePolicies?parent=${DEST_ENV_ID}" \
+                        -d "${POLICY_PAYLOAD}")
+                    
+                    if [ ! -z "$POLICY_RESPONSE" ]; then
+                        log_message "Successfully created update policy $POLICY_NAME"
+                    else
+                        log_message "Failed to create update policy $POLICY_NAME"
+                    fi
+                fi
+            fi
+        done
+    else
+        log_message "No update policies found in source environment"
+    fi
+    
+    log_message "Settings copy completed for $ENV_NAME"
 done
 
-echo "All settings copied successfully" 
+log_message "All settings copied successfully" 
