@@ -27,7 +27,7 @@ log_message() {
 get_env_details() {
     local cluster_name=$1
     local response
-    response=$(curl -s -H "Authorization: NIRMATA-API $TOKEN" "$API_ENDPOINT/environments/api/environments?fields=id,name")
+    response=$(curl -s -H "Authorization: NIRMATA-API $TOKEN" "$API_ENDPOINT/environments/api/environments?fields=id,name,clusterName")
     if [ $? -ne 0 ]; then
         log_message "Error: Failed to get environments"
         return 1
@@ -39,9 +39,17 @@ get_env_details() {
         return 1
     fi
 
-    # Filter environments for the given cluster and format output
-    echo "$response" | jq -r --arg cluster "$cluster_name" \
-        '.[] | select(.name | endswith($cluster)) | @json'
+    # Filter environments that either have matching clusterName or have the cluster name in their name
+    local filtered_envs
+    filtered_envs=$(echo "$response" | jq -r --arg cluster "$cluster_name" \
+        '[.[] | select(.clusterName == $cluster or (.name | contains($cluster)))]')
+    
+    if [ "$filtered_envs" = "[]" ]; then
+        log_message "No environments found for cluster $cluster_name"
+        return 1
+    fi
+    
+    echo "$filtered_envs"
 }
 
 # Function to get catalog application details from environment
@@ -80,66 +88,51 @@ get_catalog_application() {
         return 1
     fi
 
-    # Find the first catalog application with matching name and upstreamType=catalog
-    echo "$response" | jq -r --arg name "$app_name" \
-        '.[] | select(.name == $name and .upstreamType == "catalog") | .id' | head -n 1
+    # First try to find exact match with cluster suffix
+    local catalog_app_id
+    catalog_app_id=$(echo "$response" | jq -r --arg name "$app_name-${SOURCE_CLUSTER}" \
+        '.[] | select(.name == $name) | .id' | head -n 1)
+    
+    if [ -n "$catalog_app_id" ]; then
+        echo "$catalog_app_id"
+        return 0
+    fi
+    
+    # If not found, try without cluster suffix
+    catalog_app_id=$(echo "$response" | jq -r --arg name "$app_name" \
+        '.[] | select(.name == $name) | .id' | head -n 1)
+    
+    if [ -n "$catalog_app_id" ]; then
+        echo "$catalog_app_id"
+        return 0
+    fi
+    
+    # If still not found, try with just the base name (remove any -pvc suffix)
+    if [[ "$app_name" == *"-pvc" ]]; then
+        local base_name=${app_name%-pvc}
+        catalog_app_id=$(echo "$response" | jq -r --arg name "$base_name-${SOURCE_CLUSTER}" \
+            '.[] | select(.name == $name) | .id' | head -n 1)
+        
+        if [ -n "$catalog_app_id" ]; then
+            echo "$catalog_app_id"
+            return 0
+        fi
+    fi
+    
+    return 1
 }
 
 # Function to update catalog application reference
 update_catalog_reference() {
     local target_env_id=$1
     local app_name=$2
-    local source_app=$3
-    local target_app=$4
+    local catalog_app_id=$3
     local response
     
-    # Extract source application type and references
-    local source_upstream_type=$(echo "$source_app" | jq -r '.upstreamType // empty')
-    local payload=""
+    log_message "Updating application $app_name to use catalog reference $catalog_app_id"
     
-    if [ "$source_upstream_type" = "git" ]; then
-        # Extract Git upstream ID
-        local git_upstream_id=$(echo "$source_app" | jq -r '.gitUpstream[0].id // empty')
-        if [ -z "$git_upstream_id" ]; then
-            log_message "Error: Failed to extract Git upstream ID from source application"
-            return 1
-        fi
-        
-        payload="{\"upstreamType\": \"git\", \"gitUpstream\": \"$git_upstream_id\"}"
-        log_message "Updating application $app_name to use Git upstream $git_upstream_id"
-    elif [ "$source_upstream_type" = "catalog" ] || [ -z "$source_upstream_type" ]; then
-        # Get catalog application ID from source
-        local catalog_app_id=$(echo "$source_app" | jq -r '.catalogApplication // empty')
-        if [ -z "$catalog_app_id" ] || [ "$catalog_app_id" = "null" ]; then
-            catalog_app_id=$(echo "$source_app" | jq -r '.catalogApplicationId // empty')
-        fi
-        
-        if [ -z "$catalog_app_id" ] || [ "$catalog_app_id" = "null" ]; then
-            log_message "Warning: No catalog application ID found in source application, checking catalog"
-            # Try to find the catalog application with the same name
-            catalog_app_id=$(curl -s -H "Authorization: NIRMATA-API $TOKEN" "$API_ENDPOINT/catalog/api/applications?fields=id,name,type,upstreamType" | \
-                jq -r --arg name "$app_name" '.[] | select(.name == $name and .upstreamType == "catalog") | .id' | head -n 1)
-            if [ -z "$catalog_app_id" ]; then
-                log_message "Error: Failed to find catalog application ID for $app_name"
-                return 1
-            fi
-        fi
-        
-        log_message "Found catalog application ID: $catalog_app_id"
-        
-        # Verify the catalog application exists
-        local catalog_app=$(curl -s -H "Authorization: NIRMATA-API $TOKEN" "$API_ENDPOINT/catalog/api/applications/$catalog_app_id")
-        if [ $? -ne 0 ] || [ -z "$catalog_app" ]; then
-            log_message "Error: Failed to verify catalog application $catalog_app_id"
-            return 1
-        fi
-        
-        payload="{\"upstreamType\": \"catalog\", \"catalogApplicationId\": \"$catalog_app_id\"}"
-        log_message "Updating application $app_name to use catalog reference $catalog_app_id"
-    else
-        log_message "Skipping application $app_name - not a Git or catalog application"
-        return 0
-    fi
+    # Create payload for updating the application
+    local payload="{\"upstreamType\": \"catalog\", \"catalogApplicationId\": \"$catalog_app_id\"}"
     
     # Update the application
     response=$(curl -s -X PUT -H "Authorization: NIRMATA-API $TOKEN" -H "Content-Type: application/json" \
@@ -159,103 +152,192 @@ log_message "API Endpoint: $API_ENDPOINT"
 log_message "Source Cluster: $SOURCE_CLUSTER"
 log_message "Target Cluster: $TARGET_CLUSTER"
 
+# Check for specific restored environment
+RESTORED_ENV_NAME="nginx-123-${TARGET_CLUSTER}"
+log_message "Looking for restored environment: $RESTORED_ENV_NAME"
+
+# Get the restored environment
+RESTORED_ENV_RESPONSE=$(curl -s -H "Authorization: NIRMATA-API $TOKEN" "$API_ENDPOINT/environments/api/environments?fields=id,name")
+if [ $? -ne 0 ]; then
+    log_message "Error: Failed to get environments"
+    exit 1
+fi
+
+# Check if response is valid JSON
+if ! echo "$RESTORED_ENV_RESPONSE" | jq empty 2>/dev/null; then
+    log_message "Error: Invalid JSON response from environments API"
+    exit 1
+fi
+
+# Find the restored environment
+RESTORED_ENV=$(echo "$RESTORED_ENV_RESPONSE" | jq -r --arg name "$RESTORED_ENV_NAME" '.[] | select(.name == $name)')
+if [ -z "$RESTORED_ENV" ] || [ "$RESTORED_ENV" = "null" ]; then
+    log_message "Restored environment $RESTORED_ENV_NAME not found"
+else
+    RESTORED_ENV_ID=$(echo "$RESTORED_ENV" | jq -r '.id')
+    log_message "Found restored environment with ID: $RESTORED_ENV_ID"
+    
+    # Get applications from the restored environment
+    RESTORED_APPS=$(get_catalog_app_details "$RESTORED_ENV_ID")
+    if [ -z "$RESTORED_APPS" ]; then
+        log_message "No applications found in restored environment $RESTORED_ENV_NAME"
+    else
+        # Process each application in the restored environment
+        echo "$RESTORED_APPS" | jq -r '.[] | @json' | while read -r app; do
+            if [ -z "$app" ] || [ "$app" = "null" ]; then
+                continue
+            fi
+            
+            app_name=$(echo "$app" | jq -r '.name // empty')
+            if [ -z "$app_name" ]; then
+                continue
+            fi
+            
+            log_message "Processing application $app_name in restored environment"
+            
+            # Try different catalog application name patterns
+            catalog_app_id=""
+            
+            # First try with source cluster suffix
+            log_message "Looking for catalog application: $app_name-${SOURCE_CLUSTER}"
+            catalog_app_id=$(get_catalog_application "$app_name")
+            
+            if [ -z "$catalog_app_id" ]; then
+                # If not found, try without the -pvc suffix for PVC applications
+                if [[ "$app_name" == *"-pvc" ]]; then
+                    local base_name=${app_name%-pvc}
+                    log_message "Looking for catalog application: $base_name-${SOURCE_CLUSTER}"
+                    catalog_app_id=$(get_catalog_application "$base_name")
+                fi
+            fi
+            
+            if [ -z "$catalog_app_id" ]; then
+                log_message "No matching catalog application found for $app_name"
+                continue
+            fi
+            
+            log_message "Found catalog application with ID: $catalog_app_id"
+            
+            # Update the catalog reference
+            update_catalog_reference "$RESTORED_ENV_ID" "$app_name" "$catalog_app_id"
+        done
+    fi
+fi
+
+# Continue with the regular process for other environments
 # Get source environments
 source_envs=$(get_env_details "$SOURCE_CLUSTER")
-if [ -z "$source_envs" ]; then
-    log_message "No environments found for source cluster $SOURCE_CLUSTER"
-    exit 1
+if [ $? -ne 0 ]; then
+    log_message "Failed to get source environments, but continuing with restored environment processing"
+else
+    # Get target environments
+    target_envs=$(get_env_details "$TARGET_CLUSTER")
+    if [ $? -ne 0 ]; then
+        log_message "Failed to get target environments, but continuing with restored environment processing"
+    else
+        # Process each source environment
+        echo "$source_envs" | jq -r '.[] | @json' | while read -r source_env; do
+            if [ -z "$source_env" ] || [ "$source_env" = "null" ]; then
+                continue
+            fi
+
+            # Parse source environment JSON
+            source_env_id=$(echo "$source_env" | jq -r '.id // empty')
+            source_env_name=$(echo "$source_env" | jq -r '.name // empty')
+            
+            if [ -z "$source_env_id" ] || [ -z "$source_env_name" ]; then
+                log_message "Error: Invalid source environment data"
+                continue
+            fi
+
+            # Skip system namespaces and already processed environments
+            if [[ "$source_env_name" =~ ^(kube-system|kube-public|kube-node-lease|nirmata|ingress-haproxy|velero|default)- ]] || \
+               [ "$source_env_name" = "nginx-123" ]; then
+                log_message "Skipping system/processed environment: $source_env_name"
+                continue
+            fi
+
+            # Extract base name and create target name - handle different naming patterns
+            if [[ "$source_env_name" == *"-${SOURCE_CLUSTER}" ]]; then
+                # Standard pattern: name-clusterName
+                base_name=${source_env_name%-$SOURCE_CLUSTER}
+                target_env_name="${base_name}-${TARGET_CLUSTER}"
+            elif [[ "$source_env_name" == *"${SOURCE_CLUSTER}"* ]]; then
+                # Other patterns containing cluster name
+                base_name=$(echo "$source_env_name" | sed "s/${SOURCE_CLUSTER}//g" | sed 's/--*/-/g' | sed 's/-$//')
+                target_env_name="${base_name}-${TARGET_CLUSTER}"
+            else
+                # No cluster name in environment name
+                base_name="$source_env_name"
+                target_env_name="${base_name}-${TARGET_CLUSTER}"
+            fi
+            
+            log_message "Looking for target environment: $target_env_name"
+            
+            # Find matching target environment
+            target_env=$(echo "$target_envs" | while read -r env; do
+                if [ -z "$env" ] || [ "$env" = "null" ]; then
+                    continue
+                fi
+                env_name=$(echo "$env" | jq -r '.name // empty')
+                if [ "$env_name" = "$target_env_name" ]; then
+                    echo "$env"
+                    break
+                fi
+            done)
+            
+            if [ -z "$target_env" ]; then
+                log_message "No matching target environment found for $source_env_name (looking for $target_env_name)"
+                continue
+            fi
+            
+            target_env_id=$(echo "$target_env" | jq -r '.id // empty')
+            if [ -z "$target_env_id" ]; then
+                log_message "Error: Invalid target environment data"
+                continue
+            fi
+            
+            log_message "Processing environment pair: $source_env_name -> $target_env_name"
+            
+            # Get applications from both source and target environments
+            source_apps=$(get_catalog_app_details "$source_env_id")
+            if [ -z "$source_apps" ]; then
+                log_message "No applications found in source environment $source_env_name"
+                continue
+            fi
+            
+            target_apps=$(get_catalog_app_details "$target_env_id")
+            if [ -z "$target_apps" ]; then
+                log_message "No applications found in target environment $target_env_name"
+                continue
+            fi
+            
+            # Process each application in source environment
+            echo "$source_apps" | jq -r '.[] | @json' | while read -r source_app; do
+                if [ -z "$source_app" ] || [ "$source_app" = "null" ]; then
+                    continue
+                fi
+                
+                source_app_name=$(echo "$source_app" | jq -r '.name // empty')
+                if [ -z "$source_app_name" ]; then
+                    continue
+                fi
+                
+                # Find matching application in target environment
+                target_app=$(echo "$target_apps" | jq -r --arg name "$source_app_name" \
+                    '.[] | select(.name == $name)')
+                
+                if [ -z "$target_app" ] || [ "$target_app" = "null" ]; then
+                    log_message "No matching application found in target environment for $source_app_name"
+                    continue
+                fi
+                
+                log_message "Processing application $source_app_name"
+                update_catalog_reference "$target_env_id" "$source_app_name" "$source_app" "$target_app"
+            done
+        done
+    fi
 fi
-
-# Get target environments
-target_envs=$(get_env_details "$TARGET_CLUSTER")
-if [ -z "$target_envs" ]; then
-    log_message "No environments found for target cluster $TARGET_CLUSTER"
-    exit 1
-fi
-
-# Process each source environment
-echo "$source_envs" | while read -r source_env; do
-    if [ -z "$source_env" ] || [ "$source_env" = "null" ]; then
-        continue
-    fi
-
-    # Parse source environment JSON
-    source_env_id=$(echo "$source_env" | jq -r '.id // empty')
-    source_env_name=$(echo "$source_env" | jq -r '.name // empty')
-    
-    if [ -z "$source_env_id" ] || [ -z "$source_env_name" ]; then
-        log_message "Error: Invalid source environment data"
-        continue
-    fi
-
-    # Extract base name and create target name
-    base_name=${source_env_name%-$SOURCE_CLUSTER}
-    target_env_name="${base_name}-${TARGET_CLUSTER}"
-    
-    log_message "Looking for target environment: $target_env_name"
-    
-    # Find matching target environment
-    target_env=$(echo "$target_envs" | while read -r env; do
-        if [ -z "$env" ] || [ "$env" = "null" ]; then
-            continue
-        fi
-        env_name=$(echo "$env" | jq -r '.name // empty')
-        if [ "$env_name" = "$target_env_name" ]; then
-            echo "$env"
-            break
-        fi
-    done)
-    
-    if [ -z "$target_env" ]; then
-        log_message "No matching target environment found for $source_env_name (looking for $target_env_name)"
-        continue
-    fi
-    
-    target_env_id=$(echo "$target_env" | jq -r '.id // empty')
-    if [ -z "$target_env_id" ]; then
-        log_message "Error: Invalid target environment data"
-        continue
-    fi
-    
-    log_message "Processing environment pair: $source_env_name -> $target_env_name"
-    
-    # Get applications from both source and target environments
-    source_apps=$(get_catalog_app_details "$source_env_id")
-    if [ -z "$source_apps" ]; then
-        log_message "No applications found in source environment $source_env_name"
-        continue
-    fi
-    
-    target_apps=$(get_catalog_app_details "$target_env_id")
-    if [ -z "$target_apps" ]; then
-        log_message "No applications found in target environment $target_env_name"
-        continue
-    fi
-    
-    # Process each application in source environment
-    echo "$source_apps" | jq -r '.[] | @json' | while read -r source_app; do
-        if [ -z "$source_app" ] || [ "$source_app" = "null" ]; then
-            continue
-        fi
-        
-        source_app_name=$(echo "$source_app" | jq -r '.name // empty')
-        if [ -z "$source_app_name" ]; then
-            continue
-        fi
-        
-        # Find matching application in target environment
-        target_app=$(echo "$target_apps" | jq -r --arg name "$source_app_name" \
-            '.[] | select(.name == $name)')
-        
-        if [ -z "$target_app" ] || [ "$target_app" = "null" ]; then
-            log_message "No matching application found in target environment for $source_app_name"
-            continue
-        fi
-        
-        log_message "Processing application $source_app_name"
-        update_catalog_reference "$target_env_id" "$source_app_name" "$source_app" "$target_app"
-    done
-done
 
 log_message "Catalog reference update process completed"
 log_message "Log file: $LOG_FILE" 

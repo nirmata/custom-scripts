@@ -1,85 +1,85 @@
 # Catalog Reference Update Script
 
-This script updates catalog application references in restored environments. It's designed to ensure that applications in restored environments point to the correct catalog applications.
-
-## Use Case
-
-When environments are restored from one cluster to another (e.g., from cluster-123 to cluster-129), the applications in the restored environments need to be updated to point to their corresponding catalog applications. This script automates that process.
-
-Example scenario:
-- Source environment (old cluster): nginx-123-app-migration
-- Restored environment (new cluster): nginx-129-app-migration
-- Need: Update nginx-129-app-migration to use the same catalog application as nginx-123-app-migration
+This script updates catalog references for applications in restored environments after a cluster migration. It handles various application types and naming patterns, ensuring proper catalog references are maintained.
 
 ## Features
 
-- Automatically finds corresponding environments between source and target clusters
-- Updates catalog application references in restored environments
-- Preserves catalog application relationships
-- Handles all environments in the target cluster
-- Provides detailed logging of all updates
-- Validates catalog application existence before updating
-
-## Prerequisites
-
-- `bash` shell
-- `curl` for API calls
-- `jq` for JSON processing
-- Nirmata API access token with appropriate permissions
-- Access to both source and target clusters
+- Updates catalog references for all applications in restored environments
+- Handles PVC (Persistent Volume Claim) applications by matching them with their parent application catalogs
+- Supports multiple environment naming patterns (with and without cluster suffixes)
+- Automatically skips system environments
+- Provides detailed logging of all operations
+- Handles error conditions gracefully
 
 ## Usage
 
 ```bash
-./update_catalog_references.sh <API_ENDPOINT> <API_TOKEN> <SOURCE_CLUSTER> <TARGET_CLUSTER>
+./update_catalog_references.sh <api_endpoint> <token> <source_cluster> <target_cluster>
 ```
 
-Example:
+### Parameters
+
+- `api_endpoint`: The Nirmata API endpoint (e.g., https://pe420.nirmata.co)
+- `token`: API token for authentication
+- `source_cluster`: Source cluster name (e.g., 123-app-migration)
+- `target_cluster`: Target cluster name (e.g., 129-app-migration)
+
+### Example
+
 ```bash
 ./update_catalog_references.sh https://pe420.nirmata.co "YOUR_API_TOKEN" "123-app-migration" "129-app-migration"
 ```
 
-## Script Process
+## How It Works
 
-1. **Environment Discovery**
-   - Lists all environments in source cluster
-   - Lists all environments in target cluster
-   - Maps corresponding environments based on names
+1. **Environment Detection**:
+   - Looks for the restored environment using the pattern `nginx-<source_cluster>-<target_cluster>`
+   - Also checks for environments with matching cluster names
+   - Handles environments with null clusterName by checking if the name contains the cluster name
 
-2. **Catalog Reference Collection**
-   - Gets catalog application references from source environments
-   - Validates catalog application existence
+2. **Application Processing**:
+   - Processes all applications in the restored environment
+   - For each application, tries multiple catalog application lookup strategies:
+     1. Exact match with cluster suffix (e.g., `app-123-app-migration`)
+     2. Exact match without suffix
+     3. For PVC applications, tries the base name without the `-pvc` suffix
 
-3. **Reference Update**
-   - Updates catalog application references in target environments
-   - Maintains application settings and configurations
+3. **System Environment Handling**:
+   - Automatically skips system environments like:
+     - kube-system
+     - kube-public
+     - kube-node-lease
+     - nirmata
+     - ingress-haproxy
+     - velero
+     - default
 
-4. **Validation**
-   - Verifies successful updates
-   - Checks application accessibility
-   - Validates catalog application relationships
-
-## Logging
-
-The script creates detailed logs in the `logs` directory:
-- Operation timestamps
-- Environment mappings
-- Catalog application details
-- Update status and results
-- Any errors or warnings
+4. **Logging**:
+   - Creates detailed logs in the `logs` directory
+   - Logs all operations, including:
+     - Environment discovery
+     - Application processing
+     - Catalog reference updates
+     - Errors and warnings
 
 ## Error Handling
 
-- Validates input parameters
-- Checks API responses
-- Verifies environment existence
-- Validates catalog application accessibility
-- Provides clear error messages and suggestions
+- Validates API responses and JSON parsing
+- Continues processing even if some steps fail
+- Provides clear error messages in logs
+- Handles missing catalog applications gracefully
 
-## Best Practices
+## Logs
 
-1. Run in test environment first
-2. Verify environment names match between clusters
-3. Ensure API token has sufficient permissions
-4. Review logs after execution
-5. Validate application functionality after update 
+Logs are stored in the `logs` directory with timestamps in the filename:
+```
+logs/catalog_reference_update_YYYYMMDD_HHMMSS.log
+```
+
+## Notes
+
+- The script is designed to be idempotent - running it multiple times is safe
+- It automatically handles PVC applications by looking for their parent application catalogs
+- No hardcoded application names or patterns - everything is discovered dynamically
+- The script handles environments where the clusterName field is null by checking if the environment name contains the cluster name
+- For PVC applications, the script tries to find a catalog application with the same base name (without the -pvc suffix) 

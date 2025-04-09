@@ -25,17 +25,28 @@ check_application_exists() {
 
 # Get all environments containing the cluster name
 echo "Finding environments with cluster name: $CLUSTER_NAME"
-ENVIRONMENTS=$(curl -s -H "Authorization: NIRMATA-API $TOKEN" "$API_ENDPOINT/environments/api/environments?fields=id,name" | jq -r ".[] | select(.name | contains(\"$CLUSTER_NAME\")) | .name")
+# Modified to use clusterName field instead of name pattern
+ENVIRONMENTS=$(curl -s -H "Authorization: NIRMATA-API $TOKEN" "$API_ENDPOINT/environments/api/environments?fields=id,name,clusterName" | jq -r ".[] | select(.clusterName == \"$CLUSTER_NAME\") | .name")
 
 if [ -z "$ENVIRONMENTS" ]; then
-    echo "No environments found containing '$CLUSTER_NAME'"
+    echo "No environments found for cluster '$CLUSTER_NAME'"
     exit 1
 fi
 
 # Process each environment
 echo "$ENVIRONMENTS" | while read -r SOURCE_ENV; do
-    # Remove cluster suffix from environment name to get catalog name
-    CATALOG_NAME=$(echo "$SOURCE_ENV" | sed "s/-${CLUSTER_NAME}$//")
+    # Extract base name without cluster suffix
+    # Handle different naming patterns
+    if [[ "$SOURCE_ENV" == *"-${CLUSTER_NAME}" ]]; then
+        # Standard pattern: name-clusterName
+        CATALOG_NAME=$(echo "$SOURCE_ENV" | sed "s/-${CLUSTER_NAME}$//")
+    elif [[ "$SOURCE_ENV" == *"${CLUSTER_NAME}"* ]]; then
+        # Other patterns containing cluster name
+        CATALOG_NAME=$(echo "$SOURCE_ENV" | sed "s/${CLUSTER_NAME}//g" | sed 's/--*/-/g' | sed 's/-$//')
+    else
+        # No cluster name in environment name
+        CATALOG_NAME="$SOURCE_ENV"
+    fi
     
     # Change logging setup to use cluster name instead of timestamp
     LOG_FILE="./migration_${CLUSTER_NAME}.log"
@@ -147,14 +158,22 @@ EOF
         # Get detailed application info
         APP_DETAILS=$(curl -s -H "Authorization: NIRMATA-API $TOKEN" "$API_ENDPOINT/environments/api/applications/$APP_ID")
         
-        # Check if it's a Git-based application
-        if ! echo "$APP_DETAILS" | jq -e '.gitUpstream[0].id' > /dev/null; then
-            log_message "⚠ Skipping $APP_NAME - Not a Git-based application"
+        # Check if it's a Git-based application - improved detection
+        GIT_UPSTREAM_COUNT=$(echo "$APP_DETAILS" | jq '.gitUpstream | length')
+        if [ "$GIT_UPSTREAM_COUNT" -eq 0 ]; then
+            log_message "⚠ Skipping $APP_NAME - Not a Git-based application (no gitUpstream)"
             skip_count=$((skip_count + 1))
             continue
         fi
 
+        # Get the first Git upstream ID
         GIT_UPSTREAM_ID=$(echo "$APP_DETAILS" | jq -r '.gitUpstream[0].id')
+        if [ -z "$GIT_UPSTREAM_ID" ] || [ "$GIT_UPSTREAM_ID" = "null" ]; then
+            log_message "⚠ Skipping $APP_NAME - Invalid Git upstream ID"
+            skip_count=$((skip_count + 1))
+            continue
+        fi
+        
         log_message "✓ Detected Git-based application with upstream ID: $GIT_UPSTREAM_ID"
         
         # Create name for the application using cluster name
