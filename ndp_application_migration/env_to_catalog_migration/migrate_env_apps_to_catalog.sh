@@ -38,7 +38,7 @@ echo "$ENVIRONMENTS" | while read -r SOURCE_ENV; do
     CATALOG_NAME=$(echo "$SOURCE_ENV" | sed "s/-${CLUSTER_NAME}$//")
     
     # Change logging setup to use cluster name instead of timestamp
-    LOG_FILE="custom-scripts/env_to_catalog_migration/migration_logs/migration_${CLUSTER_NAME}.log"
+    LOG_FILE="./migration_${CLUSTER_NAME}.log"
     
     # Initialize log file with header
     cat > "$LOG_FILE" <<EOF
