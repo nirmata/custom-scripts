@@ -22,9 +22,15 @@ echo "Listing applications in environment: $ENVIRONMENT_NAME in cluster: $CLUSTE
 # Function to get cluster ID by name
 get_cluster_id() {
     local cluster_name=$1
-    local cluster_id=$(curl -s -X GET "$API_ENDPOINT/clusters/api/clusters" \
+    echo "Fetching clusters from API..."
+    local clusters_response=$(curl -s -X GET "$API_ENDPOINT/cluster/api/KubernetesCluster" \
         -H "Authorization: NIRMATA-API $API_TOKEN" \
-        -H "Accept: application/json" | jq -r --arg name "$cluster_name" '.[] | select(.name == $name) | .id')
+        -H "Accept: application/json")
+    
+    echo "API Response:"
+    echo "$clusters_response" | jq '.'
+    
+    local cluster_id=$(echo "$clusters_response" | jq -r --arg name "$cluster_name" '.[] | select(.name == $name) | .id')
     
     if [ -z "$cluster_id" ] || [ "$cluster_id" = "null" ]; then
         echo "Error: Cluster '$cluster_name' not found"
@@ -38,9 +44,21 @@ get_cluster_id() {
 get_environment_id() {
     local cluster_id=$1
     local env_name=$2
-    local env_id=$(curl -s -X GET "$API_ENDPOINT/environments/api/environments" \
+    echo "Fetching environments from API..."
+    local environments_response=$(curl -s -X GET "$API_ENDPOINT/config/api/environments" \
         -H "Authorization: NIRMATA-API $API_TOKEN" \
-        -H "Accept: application/json" | jq -r --arg cluster "$cluster_id" --arg name "$env_name" '.[] | select(.cluster.id == $cluster and .name == $name) | .id')
+        -H "Accept: application/json")
+    
+    echo "API Response:"
+    echo "$environments_response" | jq '.'
+    
+    # First, try to find environment with exact name match
+    local env_id=$(echo "$environments_response" | jq -r --arg name "$env_name" '.[] | select(.name == $name) | .id')
+    
+    # If not found, try with nirmata- prefix
+    if [ -z "$env_id" ] || [ "$env_id" = "null" ]; then
+        env_id=$(echo "$environments_response" | jq -r --arg name "nirmata-$env_name" '.[] | select(.name == $name) | .id')
+    fi
     
     if [ -z "$env_id" ] || [ "$env_id" = "null" ]; then
         echo "Error: Environment '$env_name' not found in cluster"
@@ -53,7 +71,7 @@ get_environment_id() {
 # Function to get applications in an environment
 get_environment_applications() {
     local env_id=$1
-    local apps=$(curl -s -X GET "$API_ENDPOINT/environments/api/environments/$env_id/applications" \
+    local apps=$(curl -s -X GET "$API_ENDPOINT/config/api/environments/$env_id/applications" \
         -H "Authorization: NIRMATA-API $API_TOKEN" \
         -H "Accept: application/json")
     
