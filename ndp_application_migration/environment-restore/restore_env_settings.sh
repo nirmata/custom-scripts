@@ -11,12 +11,38 @@ TOKEN=$2
 SOURCE_CLUSTER=$3
 DEST_CLUSTER=$4
 
+# Create logs directory if it doesn't exist
+LOG_DIR="logs"
+mkdir -p "$LOG_DIR"
+
+# Create log file with timestamp
+LOG_FILE="${LOG_DIR}/env_restore_$(date '+%Y%m%d_%H%M%S').log"
+SUMMARY_FILE="${LOG_DIR}/env_restore_summary_$(date '+%Y%m%d_%H%M%S').log"
+
 # Function to log messages with timestamp
 log_message() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
+    local message="[$(date '+%Y-%m-%d %H:%M:%S')] $1"
+    echo "$message"
+    echo "$message" >> "$LOG_FILE"
 }
 
-log_message "Copying settings from environments in cluster $SOURCE_CLUSTER to $DEST_CLUSTER"
+# Function to log summary
+log_summary() {
+    local message="[$(date '+%Y-%m-%d %H:%M:%S')] $1"
+    echo "$message" >> "$SUMMARY_FILE"
+}
+
+# Initialize summary counters
+TOTAL_ENVIRONMENTS=0
+SUCCESSFUL_COPIES=0
+SKIPPED_ENVIRONMENTS=0
+FAILED_COPIES=0
+
+log_message "Starting environment settings restoration from $SOURCE_CLUSTER to $DEST_CLUSTER"
+log_summary "Environment Settings Restoration Summary"
+log_summary "Source Cluster: $SOURCE_CLUSTER"
+log_summary "Destination Cluster: $DEST_CLUSTER"
+log_summary "----------------------------------------"
 
 # Get all environments
 ENVIRONMENTS=$(curl -s -H "Accept: application/json" \
@@ -59,6 +85,7 @@ fi
 echo "$SOURCE_ENVIRONMENTS" | jq -c '.' | while read -r env; do
     ENV_NAME=$(echo "$env" | jq -r '.name')
     SOURCE_ENV_ID=$(echo "$env" | jq -r '.id')
+    TOTAL_ENVIRONMENTS=$((TOTAL_ENVIRONMENTS + 1))
     
     # Determine destination environment name based on naming pattern
     if [[ "$ENV_NAME" == *"$SOURCE_CLUSTER" ]]; then
@@ -77,23 +104,12 @@ echo "$SOURCE_ENVIRONMENTS" | jq -c '.' | while read -r env; do
     if [ -z "$DEST_ENV" ]; then
         log_message "Destination environment $DEST_ENV_NAME not found. This is expected if Commvault hasn't restored it yet."
         log_message "Will try to create it now..."
-        
-        # Create destination environment
-        DEST_ENV_RESPONSE=$(curl -s -X POST \
-            -H "Content-Type: application/json" \
-            -H "Accept: application/json" \
-            -H "Authorization: NIRMATA-API $TOKEN" \
-            -d "{\"name\":\"$DEST_ENV_NAME\",\"clusterId\":\"$DEST_CLUSTER_ID\"}" \
-            "${API_ENDPOINT}/environments/api/environments")
-        
-        DEST_ENV_ID=$(echo "$DEST_ENV_RESPONSE" | jq -r '.id')
-        if [ -z "$DEST_ENV_ID" ]; then
-            log_message "Failed to create destination environment. Will retry in next iteration if Commvault restores it."
-            continue
-        fi
-    else
-        DEST_ENV_ID=$(echo "$DEST_ENV" | jq -r '.id')
+        SKIPPED_ENVIRONMENTS=$((SKIPPED_ENVIRONMENTS + 1))
+        log_summary "SKIPPED: $ENV_NAME -> $DEST_ENV_NAME (Environment not found)"
+        continue
     fi
+    
+    DEST_ENV_ID=$(echo "$DEST_ENV" | jq -r '.id')
     
     log_message "Source ID: $SOURCE_ENV_ID"
     log_message "Destination ID: $DEST_ENV_ID"
@@ -235,46 +251,157 @@ echo "$SOURCE_ENVIRONMENTS" | jq -c '.' | while read -r env; do
         log_message "No limit ranges found in source environment"
     fi
     
-    # Copy labels
-    log_message "Copying labels..."
-    LABELS=$(echo "$env" | jq -r '.labels')
-    if [ ! -z "$LABELS" ] && [ "$LABELS" != "null" ]; then
-        log_message "Updating labels: $LABELS"
-        curl -s -X PUT \
+    # Copy owner details (simplified version)
+    log_message "Copying owner details..."
+    OWNER=$(echo "$env" | jq -r '.createdBy')
+    if [ ! -z "$OWNER" ] && [ "$OWNER" != "null" ]; then
+        log_message "Setting owner to: $OWNER"
+        
+        # Get source environment details for permissions
+        SOURCE_ENV_DETAILS=$(curl -s -H "Accept: application/json" \
+            -H "Authorization: NIRMATA-API $TOKEN" \
+            "${API_ENDPOINT}/environments/api/environments/$SOURCE_ENV_ID")
+        
+        # Extract all relevant fields
+        OWNER_FIELDS=$(echo "$SOURCE_ENV_DETAILS" | jq -r '{createdBy, modifiedBy, owner, ownerEmail, ownerName}')
+        
+        # Update owner details
+        OWNER_UPDATE_RESPONSE=$(curl -s -X PUT \
             -H "Content-Type: application/json" \
             -H "Accept: application/json" \
             -H "Authorization: NIRMATA-API $TOKEN" \
-            -d "{\"labels\":$LABELS}" \
-            "${API_ENDPOINT}/environments/api/environments/$DEST_ENV_ID"
+            -d "$OWNER_FIELDS" \
+            "${API_ENDPOINT}/environments/api/environments/$DEST_ENV_ID")
+        
+        if [ ! -z "$OWNER_UPDATE_RESPONSE" ]; then
+            log_message "Successfully updated owner details"
+            OWNER_UPDATED=true
+        else
+            log_message "Failed to update owner details"
+            OWNER_UPDATED=false
+        fi
+    else
+        log_message "No owner found in source environment"
+        OWNER_UPDATED=false
+    fi
+
+    # Copy labels (improved version)
+    log_message "Copying labels..."
+    LABELS=$(echo "$env" | jq -r '.labels')
+    if [ ! -z "$LABELS" ] && [ "$LABELS" != "null" ] && [ "$LABELS" != "{}" ]; then
+        log_message "Source labels: $LABELS"
+        
+        # First get existing labels
+        EXISTING_LABELS=$(curl -s -H "Accept: application/json" \
+            -H "Authorization: NIRMATA-API $TOKEN" \
+            "${API_ENDPOINT}/environments/api/environments/$DEST_ENV_ID" | jq -r '.labels')
+        
+        log_message "Existing labels in destination: $EXISTING_LABELS"
+        
+        # Merge labels, with source labels taking precedence
+        MERGED_LABELS=$(echo "$LABELS $EXISTING_LABELS" | jq -s 'add')
+        log_message "Merged labels: $MERGED_LABELS"
+        
+        # Update labels with retry mechanism
+        MAX_RETRIES=3
+        RETRY_COUNT=0
+        LABELS_UPDATED=false
+        
+        while [ $RETRY_COUNT -lt $MAX_RETRIES ] && [ "$LABELS_UPDATED" = false ]; do
+            LABELS_UPDATE_RESPONSE=$(curl -s -X PUT \
+                -H "Content-Type: application/json" \
+                -H "Accept: application/json" \
+                -H "Authorization: NIRMATA-API $TOKEN" \
+                -d "{\"labels\":$MERGED_LABELS}" \
+                "${API_ENDPOINT}/environments/api/environments/$DEST_ENV_ID")
+            
+            # Verify the update
+            sleep 2  # Wait for changes to propagate
+            UPDATED_ENV=$(curl -s -H "Accept: application/json" \
+                -H "Authorization: NIRMATA-API $TOKEN" \
+                "${API_ENDPOINT}/environments/api/environments/$DEST_ENV_ID")
+            
+            UPDATED_LABELS=$(echo "$UPDATED_ENV" | jq -r '.labels')
+            if [ "$UPDATED_LABELS" = "$MERGED_LABELS" ]; then
+                log_message "Successfully updated labels"
+                LABELS_UPDATED=true
+                break
+            else
+                RETRY_COUNT=$((RETRY_COUNT + 1))
+                if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                    log_message "Retrying labels update (attempt $RETRY_COUNT of $MAX_RETRIES)..."
+                else
+                    log_message "Warning: Failed to verify labels update after $MAX_RETRIES attempts"
+                fi
+            fi
+        done
+    fi
+
+    # Copy update action with verification
+    log_message "Copying update action..."
+    UPDATE_ACTION=$(echo "$env" | jq -r '.updateAction')
+    if [ ! -z "$UPDATE_ACTION" ] && [ "$UPDATE_ACTION" != "null" ]; then
+        log_message "Setting update action to: $UPDATE_ACTION"
+        
+        MAX_RETRIES=3
+        RETRY_COUNT=0
+        ACTION_UPDATED=false
+        
+        while [ $RETRY_COUNT -lt $MAX_RETRIES ] && [ "$ACTION_UPDATED" = false ]; do
+            ACTION_UPDATE_RESPONSE=$(curl -s -X PUT \
+                -H "Content-Type: application/json" \
+                -H "Accept: application/json" \
+                -H "Authorization: NIRMATA-API $TOKEN" \
+                -d "{\"updateAction\":\"$UPDATE_ACTION\"}" \
+                "${API_ENDPOINT}/environments/api/environments/$DEST_ENV_ID")
+            
+            # Verify the update
+            sleep 2  # Wait for changes to propagate
+            UPDATED_ENV=$(curl -s -H "Accept: application/json" \
+                -H "Authorization: NIRMATA-API $TOKEN" \
+                "${API_ENDPOINT}/environments/api/environments/$DEST_ENV_ID")
+            
+            UPDATED_ACTION=$(echo "$UPDATED_ENV" | jq -r '.updateAction')
+            if [ "$UPDATED_ACTION" = "$UPDATE_ACTION" ]; then
+                log_message "Successfully updated update action to: $UPDATE_ACTION"
+                ACTION_UPDATED=true
+                break
+            else
+                RETRY_COUNT=$((RETRY_COUNT + 1))
+                if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                    log_message "Retrying update action update (attempt $RETRY_COUNT of $MAX_RETRIES)..."
+                else
+                    log_message "Warning: Failed to verify update action update after $MAX_RETRIES attempts"
+                fi
+            fi
+        done
     fi
     
-    # Copy update policies
+    # Copy update policies (improved version)
     log_message "Copying update policies..."
-    UPDATE_POLICIES=$(echo "$env" | jq -r '.updatePolicy[]?.id')
-    if [ ! -z "$UPDATE_POLICIES" ] && [ "$UPDATE_POLICIES" != "null" ]; then
-        echo "$UPDATE_POLICIES" | while read -r policy_id; do
-            if [ ! -z "$policy_id" ] && [ "$policy_id" != "null" ]; then
-                POLICY_DETAILS=$(curl -s -H "Accept: application/json" \
-                    -H "Authorization: NIRMATA-API $TOKEN" \
-                    "${API_ENDPOINT}/environments/api/updatePolicies/$policy_id")
+    SOURCE_UPDATE_POLICY=$(curl -s -H "Accept: application/json" \
+        -H "Authorization: NIRMATA-API $TOKEN" \
+        "${API_ENDPOINT}/environments/api/environments/${SOURCE_ENV_ID}/updatePolicy")
+    
+    if [ ! -z "$SOURCE_UPDATE_POLICY" ] && [ "$SOURCE_UPDATE_POLICY" != "null" ]; then
+        echo "$SOURCE_UPDATE_POLICY" | jq -c '.[]' | while read -r policy; do
+            POLICY_NAME=$(echo "$policy" | jq -r '.name')
+            POLICY_SPEC=$(echo "$policy" | jq -r '.spec')
+            POLICY_ACTION=$(echo "$policy" | jq -r '.action')
+            
+            if [ ! -z "$POLICY_NAME" ] && [ ! -z "$POLICY_SPEC" ] && [ "$POLICY_SPEC" != "null" ]; then
+                log_message "Creating update policy: $POLICY_NAME with action: $POLICY_ACTION"
+                POLICY_PAYLOAD="{\"name\":\"${POLICY_NAME}\",\"spec\":${POLICY_SPEC},\"action\":\"${POLICY_ACTION}\"}"
+                POLICY_RESPONSE=$(curl -s -X POST \
+                    -H "Content-Type: application/json" \
+                    -H "Authorization: NIRMATA-API ${TOKEN}" \
+                    "${API_ENDPOINT}/environments/api/environments/${DEST_ENV_ID}/updatePolicy" \
+                    -d "${POLICY_PAYLOAD}")
                 
-                POLICY_NAME=$(echo "$POLICY_DETAILS" | jq -r '.name')
-                POLICY_SPEC=$(echo "$POLICY_DETAILS" | jq -r '.spec')
-                
-                if [ ! -z "$POLICY_NAME" ] && [ ! -z "$POLICY_SPEC" ] && [ "$POLICY_SPEC" != "null" ]; then
-                    log_message "Creating update policy: $POLICY_NAME"
-                    POLICY_PAYLOAD="{\"name\":\"${POLICY_NAME}\",\"spec\":${POLICY_SPEC}}"
-                    POLICY_RESPONSE=$(curl -s -X POST \
-                        -H "Content-Type: application/json" \
-                        -H "Authorization: NIRMATA-API ${TOKEN}" \
-                        "${API_ENDPOINT}/environments/api/updatePolicies?parent=${DEST_ENV_ID}" \
-                        -d "${POLICY_PAYLOAD}")
-                    
-                    if [ ! -z "$POLICY_RESPONSE" ]; then
-                        log_message "Successfully created update policy $POLICY_NAME"
-                    else
-                        log_message "Failed to create update policy $POLICY_NAME"
-                    fi
+                if [ ! -z "$POLICY_RESPONSE" ]; then
+                    log_message "Successfully created update policy $POLICY_NAME"
+                else
+                    log_message "Failed to create update policy $POLICY_NAME"
                 fi
             fi
         done
@@ -282,7 +409,33 @@ echo "$SOURCE_ENVIRONMENTS" | jq -c '.' | while read -r env; do
         log_message "No update policies found in source environment"
     fi
     
+    # Update summary counters
+    if [ "$OWNER_UPDATED" = true ] && [ "$LABELS_UPDATED" = true ] && [ "$ACTION_UPDATED" = true ]; then
+        SUCCESSFUL_COPIES=$((SUCCESSFUL_COPIES + 1))
+        log_summary "SUCCESS: $ENV_NAME -> $DEST_ENV_NAME"
+    else
+        FAILED_COPIES=$((FAILED_COPIES + 1))
+        log_summary "FAILED: $ENV_NAME -> $DEST_ENV_NAME"
+        # Log what failed
+        if [ "$OWNER_UPDATED" != true ]; then
+            log_summary "  - Owner update failed"
+        fi
+        if [ "$LABELS_UPDATED" != true ]; then
+            log_summary "  - Labels update failed"
+        fi
+        if [ "$ACTION_UPDATED" != true ]; then
+            log_summary "  - Update action failed"
+        fi
+    fi
+    
     log_message "Settings copy completed for $ENV_NAME"
 done
 
-log_message "All settings copied successfully" 
+# Log final summary
+log_message "All settings copied successfully"
+log_summary "----------------------------------------"
+log_summary "Total Environments Processed: $TOTAL_ENVIRONMENTS"
+log_summary "Successfully Copied: $SUCCESSFUL_COPIES"
+log_summary "Skipped: $SKIPPED_ENVIRONMENTS"
+log_summary "Failed: $FAILED_COPIES"
+log_summary "----------------------------------------" 
