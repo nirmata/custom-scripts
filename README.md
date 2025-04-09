@@ -1,12 +1,12 @@
-# Catalog Reference Update Script
+# Nirmata Environment Management Scripts
 
-This repository contains scripts for managing catalog references in Nirmata environments.
+This repository contains scripts for managing Nirmata environments, catalog references, and environment migrations.
 
 ## Scripts
 
-### update_catalog_references.sh
+### migrate_env_apps_to_catalog.sh
 
-This script updates catalog references for applications between source and target clusters in Nirmata.
+This script migrates environment applications to catalogs in Nirmata.
 
 #### Prerequisites
 
@@ -18,20 +18,53 @@ This script updates catalog references for applications between source and targe
 #### Usage
 
 ```bash
-./update_catalog_references.sh <api_endpoint> <token> <source_cluster> <target_cluster>
+./migrate_env_apps_to_catalog.sh <api_endpoint> <token> <source_cluster> <target_cluster>
 ```
 
 Example:
 ```bash
-./update_catalog_references.sh https://pe420.nirmata.co "YOUR_API_TOKEN" "123-app-migration" "129-app-migration"
+./migrate_env_apps_to_catalog.sh https://pe420.nirmata.co "YOUR_API_TOKEN" "123-app-migration" "129-app-migration"
 ```
 
-#### Parameters
+#### Features
 
-- `api_endpoint`: The Nirmata API endpoint URL
-- `token`: Nirmata API token for authentication
-- `source_cluster`: Name of the source cluster
-- `target_cluster`: Name of the target cluster
+- Creates catalogs for applications
+- Migrates Git-based applications to catalog applications
+- Maintains application configurations and settings
+- Handles error cases and validation
+- Provides detailed logging
+
+### restore_env_settings.sh
+
+This script restores environment settings from a source environment to a target environment.
+
+#### Usage
+
+```bash
+./restore_env_settings.sh <api_endpoint> <token> <source_cluster> <target_cluster>
+```
+
+#### Features
+
+- Copies environment settings including:
+  - Resource quotas
+  - Limit ranges
+  - Team permissions (ACLs)
+  - Labels
+  - Update policies
+- Handles system and user environments
+- Maintains environment type and configurations
+- Provides detailed logging and error handling
+
+### update_catalog_references.sh
+
+This script updates catalog references for applications between source and target clusters in Nirmata.
+
+#### Usage
+
+```bash
+./update_catalog_references.sh <api_endpoint> <token> <source_cluster> <target_cluster>
+```
 
 #### Features
 
@@ -41,32 +74,35 @@ Example:
 - Maintains detailed logs of all operations
 - Supports error handling and validation
 
-#### Logging
+## Common Parameters
 
-The script creates detailed logs in the `logs` directory with timestamps. Each log file contains:
+For all scripts:
+- `api_endpoint`: The Nirmata API endpoint URL
+- `token`: Nirmata API token for authentication
+- `source_cluster`: Name of the source cluster
+- `target_cluster`: Name of the target cluster
+
+## Logging
+
+All scripts create detailed logs in the `logs` directory with timestamps. Each log file contains:
 - API endpoint and cluster information
 - Environment processing details
-- Application updates and their results
+- Operation results
 - Any errors or warnings encountered
-
-#### Error Handling
-
-The script includes comprehensive error handling for:
-- Invalid API responses
-- Missing environments
-- Failed application updates
-- Invalid JSON responses
-- Missing catalog references
 
 ## Directory Structure
 
 ```
 .
 ├── custom-scripts/
-│   └── catalog-reference-update/
-│       └── update_catalog_references.sh
+│   ├── catalog-reference-update/
+│   │   └── update_catalog_references.sh
+│   ├── env_to_catalog_migration/
+│   │   └── migrate_env_apps_to_catalog.sh
+│   └── environment-restore/
+│       └── restore_env_settings.sh
 └── logs/
-    └── catalog_reference_update_*.log
+    └── *.log
 ```
 
 ## Contributing
