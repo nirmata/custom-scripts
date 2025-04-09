@@ -60,8 +60,14 @@ echo "$SOURCE_ENVIRONMENTS" | jq -c '.' | while read -r env; do
     ENV_NAME=$(echo "$env" | jq -r '.name')
     SOURCE_ENV_ID=$(echo "$env" | jq -r '.id')
     
-    # Create destination environment name
-    DEST_ENV_NAME="${ENV_NAME%$SOURCE_CLUSTER}$DEST_CLUSTER"
+    # Determine destination environment name based on naming pattern
+    if [[ "$ENV_NAME" == *"$SOURCE_CLUSTER" ]]; then
+        # Environment has source cluster suffix
+        DEST_ENV_NAME="${ENV_NAME%$SOURCE_CLUSTER}$DEST_CLUSTER"
+    else
+        # Environment doesn't have cluster suffix (will be restored by Commvault)
+        DEST_ENV_NAME="${ENV_NAME}-${DEST_CLUSTER}"
+    fi
     
     log_message "Processing environment: $ENV_NAME -> $DEST_ENV_NAME"
     
@@ -69,7 +75,9 @@ echo "$SOURCE_ENVIRONMENTS" | jq -c '.' | while read -r env; do
     DEST_ENV=$(echo "$ENVIRONMENTS" | jq -r ".[] | select(.name == \"$DEST_ENV_NAME\")")
     
     if [ -z "$DEST_ENV" ]; then
-        log_message "Creating destination environment $DEST_ENV_NAME"
+        log_message "Destination environment $DEST_ENV_NAME not found. This is expected if Commvault hasn't restored it yet."
+        log_message "Will try to create it now..."
+        
         # Create destination environment
         DEST_ENV_RESPONSE=$(curl -s -X POST \
             -H "Content-Type: application/json" \
@@ -80,7 +88,7 @@ echo "$SOURCE_ENVIRONMENTS" | jq -c '.' | while read -r env; do
         
         DEST_ENV_ID=$(echo "$DEST_ENV_RESPONSE" | jq -r '.id')
         if [ -z "$DEST_ENV_ID" ]; then
-            log_message "Failed to create destination environment"
+            log_message "Failed to create destination environment. Will retry in next iteration if Commvault restores it."
             continue
         fi
     else
@@ -200,7 +208,7 @@ echo "$SOURCE_ENVIRONMENTS" | jq -c '.' | while read -r env; do
     # Copy limit ranges
     log_message "Copying limit ranges..."
     SOURCE_LIMITS=$(curl -s -H "Authorization: NIRMATA-API ${TOKEN}" \
-        "${API_ENDPOINT}/environments/api/environments/${SOURCE_ENV_ID}/limitRanges" | jq -r '.[]')
+        "${API_ENDPOINT}/environments/api/environments/${SOURCE_ENV_ID}/limitRange" | jq -r '.[]')
     
     if [ ! -z "$SOURCE_LIMITS" ]; then
         echo "$SOURCE_LIMITS" | jq -c '.' | while read -r limit; do
@@ -213,7 +221,7 @@ echo "$SOURCE_ENVIRONMENTS" | jq -c '.' | while read -r env; do
                 LIMIT_RESPONSE=$(curl -s -X POST \
                     -H "Content-Type: application/json" \
                     -H "Authorization: NIRMATA-API ${TOKEN}" \
-                    "${API_ENDPOINT}/environments/api/environments/${DEST_ENV_ID}/limitRanges" \
+                    "${API_ENDPOINT}/environments/api/environments/${DEST_ENV_ID}/limitRange" \
                     -d "${LIMIT_PAYLOAD}")
                 
                 if [ ! -z "$LIMIT_RESPONSE" ]; then

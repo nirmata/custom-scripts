@@ -137,3 +137,97 @@ When adding new scripts:
 4. Document prerequisites and dependencies
 5. Update this main README.md with your script's information
 
+## Environment and Catalog Correlations
+
+### Environment Settings Restoration (`restore_env_settings.sh`)
+
+The script handles two types of environment naming patterns:
+
+1. **Environments with Cluster Suffix**:
+```
+Source Environment: <base-name>-<source-cluster>
+Destination Environment: <base-name>-<destination-cluster>
+```
+Example:
+- Source: `nginx-123-app-migration` → Destination: `nginx-129-app-migration`
+
+2. **Environments without Cluster Suffix**:
+```
+Source Environment: <base-name>
+Destination Environment: <base-name>-<destination-cluster> (Created by Commvault)
+```
+Example:
+- Source: `nginx` → Destination: `nginx-129-app-migration` (Created by Commvault)
+
+The script:
+1. Identifies all environments in the source cluster
+2. For each environment:
+   - If environment name ends with source cluster suffix:
+     - Creates corresponding environment in destination cluster
+   - If environment name doesn't have cluster suffix:
+     - Looks for environment with destination cluster suffix (created by Commvault)
+     - If found, copies settings to that environment
+     - If not found, logs a warning and continues
+3. Maintains the same environment structure and permissions across clusters
+
+### Handling Commvault Restore
+
+When Commvault restores namespaces:
+1. It automatically appends the cluster name to namespace names
+2. Example: `nginx` becomes `nginx-129-app-migration`
+3. The script detects this behavior and:
+   - Looks for environments with the destination cluster suffix
+   - Maps source environments to their Commvault-restored counterparts
+   - Copies settings to the restored environments
+
+Example Scenarios:
+
+1. **Environment with Cluster Suffix**:
+   - Source: `nginx-123-app-migration`
+   - Destination: `nginx-129-app-migration` (created by script)
+
+2. **Environment without Cluster Suffix**:
+   - Source: `nginx`
+   - Destination: `nginx-129-app-migration` (created by Commvault)
+   - Script maps settings to the Commvault-restored environment
+
+3. **Mixed Environment Names**:
+   - Source: `nginx`, `kube-system-123-app-migration`
+   - Destination: `nginx-129-app-migration` (Commvault), `kube-system-129-app-migration` (script)
+
+### Catalog Reference Update (`update_catalog_references.sh`)
+
+The script maps environments to catalogs using the base name of the environment:
+
+```
+Environment: <base-name>-<cluster>
+Catalog: <base-name>
+```
+
+Example:
+- Environment: `nginx-123-app-migration` → Catalog: `nginx`
+- Environment: `kube-system-123-app-migration` → Catalog: `kube-system`
+
+The script:
+1. Gets all environments from the source cluster
+2. For each environment:
+   - Extracts the base name (e.g., "nginx")
+   - Finds the corresponding catalog with the same base name
+   - Updates all applications in the environment to reference the catalog applications
+3. Maintains the same application structure and configurations
+
+## Example Scenarios
+
+### Scenario 1: Environment Migration
+Source cluster `123-app-migration` has environment `nginx-123-app-migration`:
+- Environment settings are copied to `nginx-129-app-migration` in destination cluster
+- All ACLs, quotas, and permissions are preserved
+- If `nginx-129-app-migration` doesn't exist, it's automatically created
+
+### Scenario 2: Catalog Reference Update
+Environment `nginx-123-app-migration` has application `gitops-nginx`:
+- Script finds catalog named `nginx`
+- Looks for application `gitops-nginx` in that catalog
+- Updates the environment application to reference the catalog application
+- If catalog or application doesn't exist, logs a warning and continues
+
