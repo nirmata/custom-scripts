@@ -164,12 +164,57 @@ update_catalog_reference() {
     
     log_message "Updating application $app_name to use catalog reference $catalog_app_id"
     
-    # Create payload for updating the application
-    local payload="{\"upstreamType\": \"catalog\", \"catalogApplicationId\": \"$catalog_app_id\"}"
+    # Get the application ID first
+    local app_id_response
+    app_id_response=$(curl -s -H "Authorization: NIRMATA-API $TOKEN" \
+        "$API_ENDPOINT/environments/api/environments/$target_env_id/applications?fields=id,name")
     
-    # Update the application
+    if [ $? -ne 0 ]; then
+        log_message "Error: Failed to get application ID for $app_name"
+        return 1
+    fi
+    
+    local app_id
+    app_id=$(echo "$app_id_response" | jq -r --arg name "$app_name" '.[] | select(.name == $name) | .id')
+    
+    if [ -z "$app_id" ] || [ "$app_id" = "null" ]; then
+        log_message "Error: Could not find application ID for $app_name"
+        return 1
+    fi
+    
+    # Get catalog application details
+    local catalog_app_response
+    catalog_app_response=$(curl -s -H "Authorization: NIRMATA-API $TOKEN" \
+        "$API_ENDPOINT/catalog/api/applications/$catalog_app_id")
+    
+    if [ $? -ne 0 ]; then
+        log_message "Error: Failed to get catalog application details"
+        return 1
+    fi
+    
+    # Create payload for updating the application
+    local payload
+    payload=$(cat <<EOF
+{
+    "upstreamType": "catalog",
+    "type": "catalog",
+    "catalogApplicationId": "$catalog_app_id",
+    "catalogApplication": "$catalog_app_id",
+    "parent": {
+        "id": "$target_env_id",
+        "service": "Environment",
+        "modelIndex": "Environment",
+        "childRelation": "applications"
+    },
+    "modelIndex": "Application",
+    "service": "Environment"
+}
+EOF
+)
+    
+    # Update the application using the application ID
     response=$(curl -s -X PUT -H "Authorization: NIRMATA-API $TOKEN" -H "Content-Type: application/json" \
-        -d "$payload" "$API_ENDPOINT/environments/api/environments/$target_env_id/applications/$app_name")
+        -d "$payload" "$API_ENDPOINT/environments/api/applications/$app_id")
     
     if [ $? -ne 0 ]; then
         log_message "Error: Failed to update application $app_name"
@@ -177,9 +222,29 @@ update_catalog_reference() {
     fi
     
     # Verify the update was successful
-    if ! echo "$response" | jq empty 2>/dev/null; then
-        log_message "Error: Invalid JSON response from update API"
+    local verify_response
+    verify_response=$(curl -s -H "Authorization: NIRMATA-API $TOKEN" \
+        "$API_ENDPOINT/environments/api/applications/$app_id?fields=upstreamType,catalogApplicationId")
+    
+    if [ $? -ne 0 ]; then
+        log_message "Warning: Could not verify update for application $app_name"
         return 1
+    fi
+    
+    local current_type=$(echo "$verify_response" | jq -r '.upstreamType // empty')
+    local current_catalog_id=$(echo "$verify_response" | jq -r '.catalogApplicationId // empty')
+    
+    if [ "$current_type" != "catalog" ] || [ "$current_catalog_id" != "$catalog_app_id" ]; then
+        log_message "Warning: Update verification failed for $app_name. Current type: $current_type, Current catalog ID: $current_catalog_id"
+        
+        # Try updating with PATCH method
+        response=$(curl -s -X PATCH -H "Authorization: NIRMATA-API $TOKEN" -H "Content-Type: application/json" \
+            -d "$payload" "$API_ENDPOINT/environments/api/applications/$app_id")
+        
+        if [ $? -ne 0 ]; then
+            log_message "Error: Failed to update application $app_name using PATCH method"
+            return 1
+        fi
     fi
     
     log_message "Successfully updated application $app_name in environment $target_env_id"

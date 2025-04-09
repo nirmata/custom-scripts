@@ -43,6 +43,17 @@ This script moves applications from environments to catalogs. It:
 This script updates catalog references for applications in the destination cluster. It:
 - Maps environments to catalogs
 - Updates application references to point to catalog applications
+- Handles both Git-based and non-Git applications
+- Supports various application types (standard, PVC-based)
+- Verifies and validates catalog reference updates
+- Provides detailed logging of the update process
+
+The script now includes improved handling for:
+- Application ID-based updates for more reliable changes
+- Complete payload with all required fields
+- Proper parent-child relationships
+- Multiple update attempts with different methods if needed
+- Verification of successful updates
 
 **Usage:**
 ```bash
@@ -51,9 +62,20 @@ This script updates catalog references for applications in the destination clust
 
 ## Migration Process
 
-1. First, run `restore_env_settings.sh` to copy environment settings and create environments
-2. Then, run `migrate_env_apps_to_catalog.sh` to move applications to catalogs
-3. Finally, run `update_catalog_references.sh` to update application references
+1. First, run `restore_env_settings.sh` to copy environment settings and create environments:
+   - Copies environment settings (owner, labels, update policies)
+   - Creates and configures ACLs
+   - Sets up resource quotas and limit ranges
+
+2. Then, run `migrate_env_apps_to_catalog.sh` to move applications to catalogs:
+   - Creates catalog applications from environment applications
+   - Preserves Git repository information
+   - Handles different application types appropriately
+
+3. Finally, run `update_catalog_references.sh` to update application references:
+   - Updates applications to use catalog references
+   - Verifies successful updates
+   - Handles different naming patterns and application types
 
 ## Example Commands
 
@@ -124,26 +146,31 @@ When Commvault restores namespaces:
    - Always restore environment settings first
    - Then migrate applications to catalogs
    - Finally update catalog references
+   - Each step builds on the previous one
 
 2. **Error Handling**:
    - Each script logs errors and continues processing
    - Failed operations are logged for review
    - Scripts can be run multiple times safely
+   - Verification steps ensure successful updates
 
 3. **Idempotency**:
    - All scripts are idempotent
    - Running them multiple times produces the same result
    - Existing settings are updated rather than duplicated
+   - Updates are verified before proceeding
 
 4. **Environment Creation**:
    - The restore script creates missing environments
    - It handles both pre-existing and Commvault-restored environments
    - Settings are copied only after environment creation
+   - Owner details, labels, and update policies are preserved
 
 5. **Catalog Mapping**:
    - Catalogs are mapped using environment base names
    - The update script finds the correct catalog for each environment
    - Application references are updated to point to catalog applications
+   - Updates are verified and retried if necessary
 
 ## Version Compatibility
 
@@ -160,21 +187,25 @@ These scripts are compatible with:
    - Verify the environment name exists in the source cluster
    - Check if the environment name follows the expected pattern
    - Ensure you have the correct permissions to access the environment
+   - Check if Commvault has restored the environment (if applicable)
 
 2. **"Failed to create environment" error**:
    - Verify the destination cluster has sufficient resources
    - Check if an environment with the same name already exists
    - Ensure your token has permissions to create environments
+   - Verify all required settings are available in the source environment
 
 3. **"Catalog application not found" error**:
    - Run the migration script first to create catalog applications
    - Verify the catalog name matches the environment base name
    - Check if the application exists in the catalog
+   - Ensure the application name matches the expected pattern
 
-4. **"API connection failed" error**:
-   - Verify the API URL is correct and accessible
-   - Check if your token is valid and not expired
-   - Ensure network connectivity between your machine and the API
+4. **"Failed to update catalog reference" error**:
+   - Verify the application exists in both environment and catalog
+   - Check if the application ID is correct
+   - Ensure the update payload contains all required fields
+   - Try running the update script again
 
 ### Error Messages
 
