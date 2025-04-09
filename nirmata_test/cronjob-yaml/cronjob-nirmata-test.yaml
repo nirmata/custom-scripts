@@ -1,0 +1,72 @@
+---
+apiVersion: "batch/v1beta1"
+kind: "CronJob"
+spec:
+  concurrencyPolicy: "Allow"
+  suspend: false
+  successfulJobsHistoryLimit: 3
+  schedule: "@hourly"
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0 
+      parallelism: 1
+      completions: 1
+      template:
+        metadata:
+          annotations: {}
+          labels:
+            nirmata.io/application.run: "k8s-test"
+            nirmata.io/environment.name: "nirmata"
+            nirmata.io/application.type: ""
+            nirmata.io/component: "nirmata-test"
+            nirmata.io/application.addon.type: ""
+            nirmata.io/cronjob.name: "nirmata-test"
+        spec:
+          restartPolicy: "Never"
+          terminationGracePeriodSeconds: 30
+          nodeSelector: {}
+          serviceAccountName: "nirmata-test-sa"
+          serviceAccount: "nirmata-test-sa"
+          automountServiceAccountToken: false
+          schedulerName: "default-scheduler"
+          dnsPolicy: "ClusterFirst"
+          volumes:
+          - name: "nirmata-test-script"
+            configMap:
+              defaultMode: 0555
+              name: "nirmata-test-script"
+          containers:
+          - name: "nirmata-test"
+            image: "ghcr.io/nirmata/nirmata-test:9"
+            command:
+            - "/scripts/k8_test/nirmata_test.sh"
+            args:
+            - "--email"
+            - "--to"
+            - "sam@nirmata.com"
+            - "--smtp"
+            - "smtp.nirmata.com:587"
+            - "--from"
+            - "sam@nirmata.com"
+            - "--user"
+            - "sam"
+            - "--passwd"
+            - "foo"
+            - "--subject"
+            - "Cluster 1 in Error"
+            - "--always-email"
+            terminationMessagePath: "/dev/termination-log"
+            terminationMessagePolicy: "File"
+            imagePullPolicy: "IfNotPresent"
+            volumeMounts:
+            - name: "nirmata-test-script"
+              mountPath: "/scripts/k8_test"
+            resources: {}
+          securityContext: {}
+metadata:
+  annotations: {}
+  name: "nirmata-health-check"
+  labels:
+    nirmata.io/cronjob.name: "nirmata-test"
+    nirmata.io/component: "nirmata-test"

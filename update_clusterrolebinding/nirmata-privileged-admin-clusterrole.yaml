@@ -1,0 +1,716 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: nirmata:nirmata-privileged
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods/attach
+  - pods/exec
+  - pods/portforward
+  - pods/proxy
+  - nodes/proxy
+  - nodes/metrics
+  - secrets
+  - services/proxy
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - crd.projectcalico.org
+  resources:
+  - bgpconfigurations
+  - bgpfilters
+  - bgppeers
+  - blockaffinities
+  - caliconodestatuses
+  - clusterinformations
+  - felixconfigurations
+  - globalnetworkpolicies
+  - globalnetworksets
+  - hostendpoints
+  - ipamblocks
+  - ipamconfigs
+  - ipamhandles
+  - ippools
+  - ipreservations
+  - kubecontrollersconfigurations
+  - networkpolicies
+  - networksets
+  - profiles
+  verbs:
+  - impersonate
+  - create
+  - deletecollection
+  - update
+  - delete
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - serviceaccounts
+  - nodes
+  verbs:
+  - impersonate
+  - create
+  - deletecollection
+  - update
+  - delete
+  - get
+  - list
+  - watch
+- apiGroups:
+  - operator.tigera.io
+  resources:
+  - apiservers
+  - imagesets
+  - installations
+  - tigerastatuses
+  verbs:
+  - impersonate
+  - create
+  - deletecollection
+  - update
+  - delete
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - componentstatuses
+  - pods
+  - pods/attach
+  - pods/exec
+  - pods/portforward
+  - pods/proxy
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - patch
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - endpoints
+  - persistentvolumeclaims
+  - replicationcontrollers
+  - replicationcontrollers/scale
+  - secrets
+  - serviceaccounts
+  - services
+  - services/proxy
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - patch
+  - update
+- apiGroups:
+  - apps
+  resources:
+  - daemonsets
+  - deployments
+  - deployments/rollback
+  - deployments/scale
+  - replicasets
+  - replicasets/scale
+  - statefulsets
+  - statefulsets/scale
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - patch
+  - update
+- apiGroups:
+  - autoscaling
+  resources:
+  - horizontalpodautoscalers
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - patch
+  - update
+- apiGroups:
+  - batch
+  resources:
+  - cronjobs
+  - jobs
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - patch
+  - update
+- apiGroups:
+  - extensions
+  resources:
+  - daemonsets
+  - deployments
+  - deployments/rollback
+  - deployments/scale
+  - ingresses
+  - endpoints
+  - networkpolicies
+  - replicasets
+  - replicasets/scale
+  - replicationcontrollers/scale
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - patch
+  - update
+- apiGroups:
+  - policy
+  resources:
+  - poddisruptionbudgets
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - patch
+  - update
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  - ingresses/finalizers
+  - ingressclasses
+  - networkpolicies
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - patch
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - update
+  - patch
+- apiGroups:
+  - ""
+  resources:
+  - pods/eviction
+  verbs:
+  - create
+- apiGroups:
+  - ""
+  resources:
+  - serviceaccounts/token
+  verbs:
+  - create
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - deletecollection
+  - delete
+  - create
+  - list
+  - get
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - metrics.k8s.io
+  resources:
+  - pods
+  - nodes
+  verbs:
+  - deletecollection
+  - delete
+  - create
+  - list
+  - get
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - endpoints
+  - gateways
+  - events
+  - persistentvolumeclaims
+  - persistentvolumeclaims/status
+  - pods
+  - replicationcontrollers
+  - replicationcontrollers/scale
+  - serviceaccounts
+  - services
+  - services/status
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - update
+  - get
+  - list
+  - watch
+- apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - gateways
+  - gateways/finalizers
+  - httproutes
+  - httproutes/finalizers
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - update
+  - get
+  - list
+  - watch
+- apiGroups:
+  - route.openshift.io
+  resources:
+  - routes/custom-host
+  verbs:
+  - create
+- apiGroups:
+  - ""
+  resources:
+  - bindings
+  verbs:
+  - create
+- apiGroups:
+  - ""
+  resources:
+  - limitranges
+  - resourcequotas
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - update
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - limitranges
+  - namespaces/status
+  - pods/log
+  - pods/status
+  - replicationcontrollers/status
+  - resourcequotas
+  - resourcequotas/status
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - create
+  - update
+  - get
+  - list
+  - watch
+  - patch
+- apiGroups:
+  - apps
+  resources:
+  - controllerrevisions
+  - daemonsets
+  - daemonsets/status
+  - deployments
+  - deployments/scale
+  - deployments/status
+  - replicasets
+  - replicasets/scale
+  - replicasets/status
+  - statefulsets
+  - statefulsets/scale
+  - statefulsets/status
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - autoscaling
+  resources:
+  - horizontalpodautoscalers
+  - horizontalpodautoscalers/status
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - batch
+  resources:
+  - cronjobs
+  - cronjobs/status
+  - jobs
+  - jobs/status
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - extensions
+  resources:
+  - daemonsets
+  - daemonsets/status
+  - deployments
+  - deployments/scale
+  - deployments/status
+  - ingresses
+  - endpoints
+  - ingresses/status
+  - networkpolicies
+  - replicasets
+  - replicasets/scale
+  - replicasets/status
+  - replicationcontrollers/scale
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - policy
+  resources:
+  - poddisruptionbudgets
+  - poddisruptionbudgets/status
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  - ingresses/status
+  - networkpolicies
+  - ingresses/finalizers
+  - ingressclasses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - discovery.k8s.io
+  resources:
+  - endpointslices
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - kyverno.io
+  resources:
+  - admissionreports
+  - generaterequests
+  - backgroundscanreports
+  - cleanuppolicies
+  - clusteradmissionreports
+  - clusterbackgroundscanreports
+  - clustercleanuppolicies
+  - clusterpolicies
+  - policies
+  - policyexceptions
+  - updaterequests
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - wgpolicyk8s.io
+  resources:
+  - policyreports
+  - clusterpolicyreports
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - kyverno.io
+  resources:
+  - admissionreports
+  - clusteradmissionreports
+  - backgroundscanreports
+  - clusterbackgroundscanreports
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - authorization.k8s.io
+  resources:
+  - localsubjectaccessreviews
+  - selfsubjectaccessreviews
+  - selfsubjectrulesreviews
+  - subjectaccessreviews
+  verbs:
+  - create
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - clusterrolebindings
+  - clusterroles
+  - rolebindings
+  - roles
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - snapshot.storage.k8s.io
+  resources:
+  - volumesnapshotclasses
+  - volumesnapshotcontents
+  - volumesnapshots
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - storage.k8s.io
+  resources:
+  - csidrivers
+  - csinodes
+  - csistoragecapacities
+  - storageclasses
+  - volumeattachments
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - scheduling.k8s.io
+  resources:
+  - priorityclasses
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - certificates.k8s.io
+  resources:
+  - certificatesigningrequests
+  - certificatesigningrequests/status
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - apiregistration.k8s.io
+  resources:
+  - apiservices
+  verbs:
+  - deletecollection
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - admissionregistration.k8s.io
+  resources:
+  - mutatingwebhookconfigurations
+  - validatingwebhookconfigurations
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - authentication.k8s.io
+  resources:
+  - tokenreviews
+  verbs:
+  - create
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - apiextensions.k8s.io
+  resources:
+  - customresourcedefinitions
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - cert-manager.io
+  resources:
+  - issuers
+  - issuers/status
+  - clusterissuers
+  - clusterissuers/status
+  - certificaterequests
+  - certificates
+  - certificates/finalizers
+  - certificates/status
+  - certificaterequests/status
+  - certificaterequests/finalizers
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - cert-manager.io
+  resources:
+  - signers
+  - certificates
+  resourceNames: ["clusterissuers.cert-manager.io/*", "issuers.cert-manager.io/*"]
+  verbs: 
+  - approve
+  - sign
+- apiGroups:
+  - certificates.k8s.io
+  resources:
+  - signers
+  - certificates
+  resourceNames: ["clusterissuers.cert-manager.io/*", "issuers.cert-manager.io/*"]
+  verbs: 
+  - approve
+  - sign
+- apiGroups:
+  - acme.cert-manager.io
+  resources:
+  - orders
+  - orders/status
+  - orders/finalizers
+  - challenges/status
+  - challenges/finalizers
+  - challenges
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - security.nirmata.io
+  - kyverno.io
+  resources:
+  - "*"
+  verbs:
+  - "*"
+- nonResourceURLs:
+  - "/metrics"
+  verbs:
+  - get
+- apiGroups:
+  - ""
+  resources:
+  -  componentstatuses
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - flowcontrol.apiserver.k8s.io
+  resources:
+  - flowschemas 
+  - prioritylevelconfigurations
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+  - deletecollection
+- apiGroups:
+  - node.k8s.io
+  resources:
+  - runtimeclasses
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+  - deletecollection

@@ -1,0 +1,3 @@
+test-namespace1
+test-namespace2
+test-namespace3

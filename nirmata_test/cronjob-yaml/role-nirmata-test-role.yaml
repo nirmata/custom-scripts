@@ -1,0 +1,22 @@
+---
+apiVersion: "rbac.authorization.k8s.io/v1beta1"
+kind: "Role"
+metadata:
+  namespace: "nirmata"
+  name: "nirmata-test-role"
+  labels: {}
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - "configmaps"
+  - "pods"
+  - "secrets"
+  - "namespaces"
+  - "pods/exec"
+  - "pods/log"
+  verbs:
+  - "get"
+  - "list"
+  - "watch"
+  - "create"

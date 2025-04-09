@@ -1,0 +1,9 @@
+1.0.9
+- fix detection of agent on older installs
+1.0.8
+- Add auto update of script
+- Cleanup detection of CNI and kubeproxy
+1.0.7
+- Fix multiple tos
+- Fix always email if subject not provided.  (Missing a subject is a warnign and we email on a warning...)
+- Fix cluster test

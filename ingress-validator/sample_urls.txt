@@ -1,0 +1,4 @@
+# Example ingress URLs
+pe420.nirmata.co
+pe421.nirmata.co
+pe422.nirmata.co 
