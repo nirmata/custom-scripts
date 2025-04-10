@@ -258,13 +258,14 @@ EOF
     echo "=====================================" >> "$LOG_FILE"
 }
 
-# Process each environment
-echo "$ENVIRONMENTS" | while read -r SOURCE_ENV; do
-    # Change logging setup to use source cluster name instead of timestamp
-    LOG_FILE="./migration_${SOURCE_CLUSTER_NAME}_to_${DEST_CLUSTER_NAME}.log"
-    
-    # Initialize log file with header
-    cat > "$LOG_FILE" <<EOF
+# Process each environment exactly once
+SOURCE_ENV=$3  # Use the source environment directly from command line argument
+
+# Change logging setup to use source cluster name instead of timestamp
+LOG_FILE="./migration_${SOURCE_CLUSTER_NAME}_to_${DEST_CLUSTER_NAME}.log"
+
+# Initialize log file with header
+cat > "$LOG_FILE" <<EOF
 === Migration Report ===
 Date: $(date)
 Source Environment: $SOURCE_ENV
@@ -276,15 +277,14 @@ Migration Details:
 =====================================
 EOF
 
-    echo "=== Migration Configuration ==="
-    echo "API Endpoint: $API_ENDPOINT"
-    echo "Source Environment: $SOURCE_ENV"
-    echo "Target Catalog Name: $SOURCE_ENV"
-    echo "Cluster Name: $SOURCE_CLUSTER_NAME"
-    echo "==========================="
+echo "=== Migration Configuration ==="
+echo "API Endpoint: $API_ENDPOINT"
+echo "Source Environment: $SOURCE_ENV"
+echo "Target Catalog Name: $SOURCE_ENV"
+echo "Cluster Name: $SOURCE_CLUSTER_NAME"
+echo "==========================="
 
-    # Process the environment
-    process_environment "$SOURCE_ENV"
-done
+# Process the environment
+process_environment "$SOURCE_ENV"
 
 echo "Migration process completed. Check migration logs for detailed report."
