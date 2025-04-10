@@ -2,430 +2,313 @@
 
 # Check if all required arguments are provided
 if [ "$#" -ne 4 ]; then
-    echo "Usage: $0 <api_endpoint> <token> <source_cluster> <target_cluster>"
-    echo "Example: $0 https://pe420.nirmata.co \"YOUR_API_TOKEN\" \"123-app-migration\" \"129-app-migration\""
+    echo "Usage: $0 <api_endpoint> <token> <source_cluster_name> <destination_cluster_name>"
     exit 1
 fi
 
 API_ENDPOINT=$1
 TOKEN=$2
-SOURCE_CLUSTER=$3
-TARGET_CLUSTER=$4
+SOURCE_CLUSTER_NAME=$3
+DEST_CLUSTER_NAME=$4
 
 # Create logs directory if it doesn't exist
-LOGS_DIR="logs"
-mkdir -p "$LOGS_DIR"
-LOG_FILE="$LOGS_DIR/catalog_reference_update_$(date +%Y%m%d_%H%M%S).log"
+mkdir -p logs
 
-# Function to log messages to both console and file
+# Generate log file name with timestamp
+LOG_FILE="logs/catalog_reference_update_$(date +%Y%m%d_%H%M%S).log"
+
+# Function to log messages
 log_message() {
-    echo "$1"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "$LOG_FILE"
+    local message="[$(date '+%Y-%m-%d %H:%M:%S')] $1"
+    echo "$message"
+    echo "$message" >> "$LOG_FILE"
 }
 
-# Function to get environment details
-get_env_details() {
-    local cluster_name=$1
-    local response
-    response=$(curl -s -H "Authorization: NIRMATA-API $TOKEN" "$API_ENDPOINT/environments/api/environments?fields=id,name,clusterName")
-    if [ $? -ne 0 ]; then
-        log_message "Error: Failed to get environments"
-        return 1
-    fi
-
-    # Check if response is valid JSON
-    if ! echo "$response" | jq empty 2>/dev/null; then
-        log_message "Error: Invalid JSON response from environments API"
-        return 1
-    fi
-
-    # Filter environments that either have matching clusterName or have the cluster name in their name
-    local filtered_envs
-    filtered_envs=$(echo "$response" | jq -r --arg cluster "$cluster_name" \
-        '[.[] | select(.clusterName == $cluster or (.name | contains($cluster)))]')
+# Function to check authentication
+check_auth() {
+    log_message "Checking authentication..."
+    local response=$(curl -s -w "%{http_code}" -H "Authorization: NIRMATA-API $TOKEN" "$API_ENDPOINT/catalog/api/applications")
+    local http_code=${response: -3}
+    local body=${response%???}
     
-    if [ "$filtered_envs" = "[]" ]; then
-        log_message "No environments found for cluster $cluster_name"
+    if [ "$http_code" = "200" ]; then
+        log_message "Authentication successful"
+        return 0
+    else
+        log_message "ERROR: Authentication failed. HTTP code: $http_code"
+        log_message "ERROR: Response: $body"
         return 1
     fi
-    
-    echo "$filtered_envs"
 }
 
-# Function to get catalog application details from environment
-get_catalog_app_details() {
-    local env_id=$1
-    local response
-    response=$(curl -s -H "Authorization: NIRMATA-API $TOKEN" "$API_ENDPOINT/environments/api/environments/$env_id/applications?fields=id,name,type,upstreamType,gitUpstream,catalogApplicationId,catalogApplication")
-    if [ $? -ne 0 ]; then
-        log_message "Error: Failed to get applications for environment $env_id"
-        return 1
-    fi
-
-    # Check if response is valid JSON
-    if ! echo "$response" | jq empty 2>/dev/null; then
-        log_message "Error: Invalid JSON response from applications API"
-        return 1
-    fi
-
-    # Return application details if any exist
-    echo "$response"
-}
-
-# Function to get catalog application
-get_catalog_application() {
+# Function to find catalog application
+find_catalog_application() {
     local app_name=$1
-    local response
-    response=$(curl -s -H "Authorization: NIRMATA-API $TOKEN" "$API_ENDPOINT/catalog/api/applications?fields=id,name,type,upstreamType,gitUpstream")
-    if [ $? -ne 0 ]; then
-        log_message "Error: Failed to get catalog applications"
-        return 1
-    fi
-
-    # Check if response is valid JSON
-    if ! echo "$response" | jq empty 2>/dev/null; then
-        log_message "Error: Invalid JSON response from catalog API"
-        return 1
-    fi
-
-    # First try to find exact match with cluster suffix
-    local catalog_app_id
-    catalog_app_id=$(echo "$response" | jq -r --arg name "$app_name-${SOURCE_CLUSTER}" \
-        '.[] | select(.name == $name) | .id' | head -n 1)
+    local base_name=$2
+    local cluster_name=$3
     
-    if [ -n "$catalog_app_id" ]; then
-        echo "$catalog_app_id"
-        return 0
-    fi
+    log_message "Looking for catalog application for: $app_name (base name: $base_name, cluster: $cluster_name)"
     
-    # If not found, try without cluster suffix
-    catalog_app_id=$(echo "$response" | jq -r --arg name "$app_name" \
-        '.[] | select(.name == $name) | .id' | head -n 1)
+    # Try different patterns to find the catalog application
+    local patterns=(
+        "app-${app_name}-${SOURCE_CLUSTER_NAME}"
+        "app-${app_name}-${cluster_name}"
+        "app-${app_name}"
+        "${app_name}"
+        "app-${base_name}-${SOURCE_CLUSTER_NAME}"
+        "app-${base_name}-${cluster_name}"
+        "app-${base_name}"
+        "${base_name}"
+    )
     
-    if [ -n "$catalog_app_id" ]; then
-        echo "$catalog_app_id"
-        return 0
-    fi
-    
-    # If still not found, try with just the base name (remove any -pvc suffix)
-    if [[ "$app_name" == *"-pvc" ]]; then
-        local base_name=${app_name%-pvc}
-        catalog_app_id=$(echo "$response" | jq -r --arg name "$base_name-${SOURCE_CLUSTER}" \
-            '.[] | select(.name == $name) | .id' | head -n 1)
+    for pattern in "${patterns[@]}"; do
+        log_message "Trying pattern: $pattern"
+        local response=$(curl -s -H "Authorization: NIRMATA-API $TOKEN" "$API_ENDPOINT/catalog/api/applications?fields=id,name" | jq -r ".[] | select(.name == \"$pattern\")")
         
-        if [ -n "$catalog_app_id" ]; then
+        if [ ! -z "$response" ] && [ "$response" != "null" ]; then
+            local catalog_app_id=$(echo "$response" | jq -r '.id')
+            log_message "Found catalog application with ID: $catalog_app_id"
             echo "$catalog_app_id"
             return 0
         fi
-    fi
+    done
     
+    log_message "No catalog application found for: $app_name"
     return 1
 }
 
-# Function to find target environment
-find_target_environment() {
-    local source_env_name=$1
-    local target_envs=$2
-    local target_env_name=""
+# Function to make API calls with retries
+make_api_call() {
+    local endpoint=$1
+    local method=${2:-GET}
+    local data=$3
+    local max_retries=3
+    local retry_count=0
+    local wait_time=5
 
-    # Extract base name and create target name - handle different naming patterns
-    if [[ "$source_env_name" == *"-${SOURCE_CLUSTER}" ]]; then
-        # Standard pattern: name-clusterName
-        base_name=${source_env_name%-$SOURCE_CLUSTER}
-        target_env_name="${base_name}-${TARGET_CLUSTER}"
-    elif [[ "$source_env_name" == *"${SOURCE_CLUSTER}"* ]]; then
-        # Other patterns containing cluster name
-        base_name=$(echo "$source_env_name" | sed "s/${SOURCE_CLUSTER}//g" | sed 's/--*/-/g' | sed 's/-$//')
-        target_env_name="${base_name}-${TARGET_CLUSTER}"
-    else
-        # No cluster name in environment name
-        base_name="$source_env_name"
-        target_env_name="${base_name}-${TARGET_CLUSTER}"
-    fi
+    while [ $retry_count -lt $max_retries ]; do
+        if [ -n "$data" ]; then
+            local response=$(curl -s -w "%{http_code}" -X "$method" \
+                -H "Authorization: NIRMATA-API $TOKEN" \
+                -H "Content-Type: application/json" \
+                -d "$data" \
+                "$API_ENDPOINT$endpoint")
+        else
+            local response=$(curl -s -w "%{http_code}" -X "$method" \
+                -H "Authorization: NIRMATA-API $TOKEN" \
+                "$API_ENDPOINT$endpoint")
+        fi
 
-    # Find matching target environment
-    local target_env
-    target_env=$(echo "$target_envs" | jq -r --arg name "$target_env_name" '.[] | select(.name == $name)')
-    
-    if [ -n "$target_env" ] && [ "$target_env" != "null" ]; then
-        echo "$target_env"
-        return 0
-    fi
-    
+        local http_code=${response: -3}
+        local body=${response%???}
+
+        case $http_code in
+            200|201|202|204)
+                echo "$body"
+                return 0
+                ;;
+            401)
+                log_message "ERROR: Authentication failed. Please check your token."
+                return 1
+                ;;
+            403)
+                log_message "ERROR: Permission denied. Please check your access rights."
+                return 1
+                ;;
+            404)
+                log_message "ERROR: Resource not found: $endpoint"
+                return 1
+                ;;
+            429)
+                log_message "WARNING: Rate limit exceeded. Waiting before retry..."
+                sleep $wait_time
+                wait_time=$((wait_time * 2))
+                ;;
+            500|502|503|504)
+                log_message "WARNING: Server error ($http_code). Retrying in $wait_time seconds..."
+                sleep $wait_time
+                wait_time=$((wait_time * 2))
+                ;;
+            *)
+                log_message "ERROR: Unexpected HTTP code: $http_code"
+                log_message "Response: $body"
+                return 1
+                ;;
+        esac
+
+        retry_count=$((retry_count + 1))
+    done
+
+    log_message "ERROR: Maximum retries reached for $endpoint"
     return 1
 }
 
-# Function to update catalog application reference
+# Function to update catalog reference with enhanced error handling
 update_catalog_reference() {
-    local target_env_id=$1
-    local app_name=$2
-    local catalog_app_id=$3
-    local response
-    
-    log_message "Updating application $app_name to use catalog reference $catalog_app_id"
-    
-    # Get the application ID first
-    local app_id_response
-    app_id_response=$(curl -s -H "Authorization: NIRMATA-API $TOKEN" \
-        "$API_ENDPOINT/environments/api/environments/$target_env_id/applications?fields=id,name")
-    
-    if [ $? -ne 0 ]; then
-        log_message "Error: Failed to get application ID for $app_name"
-        return 1
-    fi
-    
-    local app_id
-    app_id=$(echo "$app_id_response" | jq -r --arg name "$app_name" '.[] | select(.name == $name) | .id')
-    
-    if [ -z "$app_id" ] || [ "$app_id" = "null" ]; then
-        log_message "Error: Could not find application ID for $app_name"
-        return 1
-    fi
-    
-    # Get catalog application details
-    local catalog_app_response
-    catalog_app_response=$(curl -s -H "Authorization: NIRMATA-API $TOKEN" \
-        "$API_ENDPOINT/catalog/api/applications/$catalog_app_id")
-    
-    if [ $? -ne 0 ]; then
-        log_message "Error: Failed to get catalog application details"
-        return 1
-    fi
-    
-    # Create payload for updating the application
-    local payload
-    payload=$(cat <<EOF
-{
-    "upstreamType": "catalog",
-    "type": "catalog",
-    "catalogApplicationId": "$catalog_app_id",
-    "catalogApplication": "$catalog_app_id",
-    "parent": {
-        "id": "$target_env_id",
-        "service": "Environment",
-        "modelIndex": "Environment",
-        "childRelation": "applications"
-    },
-    "modelIndex": "Application",
-    "service": "Environment"
-}
-EOF
-)
-    
-    # Update the application using the application ID
-    response=$(curl -s -X PUT -H "Authorization: NIRMATA-API $TOKEN" -H "Content-Type: application/json" \
-        -d "$payload" "$API_ENDPOINT/environments/api/applications/$app_id")
-    
-    if [ $? -ne 0 ]; then
-        log_message "Error: Failed to update application $app_name"
-        return 1
-    fi
-    
-    # Verify the update was successful
-    local verify_response
-    verify_response=$(curl -s -H "Authorization: NIRMATA-API $TOKEN" \
-        "$API_ENDPOINT/environments/api/applications/$app_id?fields=upstreamType,catalogApplicationId")
-    
-    if [ $? -ne 0 ]; then
-        log_message "Warning: Could not verify update for application $app_name"
-        return 1
-    fi
-    
-    local current_type=$(echo "$verify_response" | jq -r '.upstreamType // empty')
-    local current_catalog_id=$(echo "$verify_response" | jq -r '.catalogApplicationId // empty')
-    
-    if [ "$current_type" != "catalog" ] || [ "$current_catalog_id" != "$catalog_app_id" ]; then
-        log_message "Warning: Update verification failed for $app_name. Current type: $current_type, Current catalog ID: $current_catalog_id"
-        
-        # Try updating with PATCH method
-        response=$(curl -s -X PATCH -H "Authorization: NIRMATA-API $TOKEN" -H "Content-Type: application/json" \
-            -d "$payload" "$API_ENDPOINT/environments/api/applications/$app_id")
-        
+    local app_id=$1
+    local catalog_app_id=$2
+    local app_name=$3
+    local max_retries=3
+    local retry_count=0
+    local wait_time=5
+
+    log_message "Updating catalog reference for application $app_id to catalog application $catalog_app_id"
+
+    while [ $retry_count -lt $max_retries ]; do
+        # Update catalog reference
+        local update_data="{\"catalogApplicationId\": \"$catalog_app_id\"}"
+        local update_response=$(make_api_call "/environments/api/applications/$app_id" "PUT" "$update_data")
         if [ $? -ne 0 ]; then
-            log_message "Error: Failed to update application $app_name using PATCH method"
+            log_message "ERROR: Failed to update catalog reference for $app_name"
+            retry_count=$((retry_count + 1))
+            if [ $retry_count -lt $max_retries ]; then
+                log_message "Retrying in $wait_time seconds... (Attempt $((retry_count + 1)) of $max_retries)"
+                sleep $wait_time
+                wait_time=$((wait_time * 2))
+                continue
+            fi
             return 1
         fi
-    fi
-    
-    log_message "Successfully updated application $app_name in environment $target_env_id"
+
+        log_message "Successfully updated catalog reference for $app_name"
+        return 0
+    done
+
+    log_message "ERROR: Maximum retries reached for updating catalog reference for $app_name"
+    return 1
 }
 
-# Main process
-log_message "Starting catalog reference update process"
-log_message "API Endpoint: $API_ENDPOINT"
-log_message "Source Cluster: $SOURCE_CLUSTER"
-log_message "Target Cluster: $TARGET_CLUSTER"
+# Function to process application with error handling
+process_application() {
+    local app_id=$1
+    local app_name=$2
+    local cluster_name=$3
+    local base_name=$4
 
-# Check for specific restored environment
-RESTORED_ENV_NAME="nginx-123-${TARGET_CLUSTER}"
-log_message "Looking for restored environment: $RESTORED_ENV_NAME"
+    log_message "Processing application: $app_name (ID: $app_id)"
 
-# Get the restored environment
-RESTORED_ENV_RESPONSE=$(curl -s -H "Authorization: NIRMATA-API $TOKEN" "$API_ENDPOINT/environments/api/environments?fields=id,name")
-if [ $? -ne 0 ]; then
-    log_message "Error: Failed to get environments"
-    exit 1
-fi
-
-# Check if response is valid JSON
-if ! echo "$RESTORED_ENV_RESPONSE" | jq empty 2>/dev/null; then
-    log_message "Error: Invalid JSON response from environments API"
-    exit 1
-fi
-
-# Find the restored environment
-RESTORED_ENV=$(echo "$RESTORED_ENV_RESPONSE" | jq -r --arg name "$RESTORED_ENV_NAME" '.[] | select(.name == $name)')
-if [ -z "$RESTORED_ENV" ] || [ "$RESTORED_ENV" = "null" ]; then
-    log_message "Restored environment $RESTORED_ENV_NAME not found"
-else
-    RESTORED_ENV_ID=$(echo "$RESTORED_ENV" | jq -r '.id')
-    log_message "Found restored environment with ID: $RESTORED_ENV_ID"
-    
-    # Get applications from the restored environment
-    RESTORED_APPS=$(get_catalog_app_details "$RESTORED_ENV_ID")
-    if [ -z "$RESTORED_APPS" ]; then
-        log_message "No applications found in restored environment $RESTORED_ENV_NAME"
-    else
-        # Process each application in the restored environment
-        echo "$RESTORED_APPS" | jq -r '.[] | @json' | while read -r app; do
-            if [ -z "$app" ] || [ "$app" = "null" ]; then
-                continue
-            fi
-            
-            app_name=$(echo "$app" | jq -r '.name // empty')
-            if [ -z "$app_name" ]; then
-                continue
-            fi
-            
-            log_message "Processing application $app_name in restored environment"
-            
-            # Try different catalog application name patterns
-            catalog_app_id=""
-            
-            # First try with source cluster suffix
-            log_message "Looking for catalog application: $app_name-${SOURCE_CLUSTER}"
-            catalog_app_id=$(get_catalog_application "$app_name")
-            
-            if [ -z "$catalog_app_id" ]; then
-                # If not found, try without the -pvc suffix for PVC applications
-                if [[ "$app_name" == *"-pvc" ]]; then
-                    local base_name=${app_name%-pvc}
-                    log_message "Looking for catalog application: $base_name-${SOURCE_CLUSTER}"
-                    catalog_app_id=$(get_catalog_application "$base_name")
-                fi
-            fi
-            
-            if [ -z "$catalog_app_id" ]; then
-                log_message "No matching catalog application found for $app_name"
-                continue
-            fi
-            
-            log_message "Found catalog application with ID: $catalog_app_id"
-            
-            # Update the catalog reference
-            update_catalog_reference "$RESTORED_ENV_ID" "$app_name" "$catalog_app_id"
-        done
+    # Get catalog application ID
+    local catalog_app_id=$(find_catalog_application "$app_name" "$base_name" "$cluster_name")
+    if [ -z "$catalog_app_id" ]; then
+        log_message "No catalog application found for: $app_name"
+        return 0
     fi
-fi
 
-# Continue with the regular process for other environments
-# Get source environments
-source_envs=$(get_env_details "$SOURCE_CLUSTER")
-if [ $? -ne 0 ]; then
-    log_message "Failed to get source environments, but continuing with restored environment processing"
-else
-    # Get target environments
-    target_envs=$(get_env_details "$TARGET_CLUSTER")
+    # Update catalog reference with retries
+    if ! update_catalog_reference "$app_id" "$catalog_app_id" "$app_name"; then
+        log_message "ERROR: Failed to update catalog reference for $app_name after multiple retries"
+        return 1
+    fi
+
+    return 0
+}
+
+# Main execution with error handling
+main() {
+    local failed_apps=()
+    local success_count=0
+    local failure_count=0
+
+    # Check authentication
+    if ! check_auth; then
+        log_message "ERROR: Authentication failed. Exiting."
+        exit 1
+    fi
+
+    # Get environments
+    local environments=$(get_environments)
     if [ $? -ne 0 ]; then
-        log_message "Failed to get target environments, but continuing with restored environment processing"
-    else
-        # Process each source environment
-        echo "$source_envs" | jq -r '.[] | @json' | while read -r source_env; do
-            if [ -z "$source_env" ] || [ "$source_env" = "null" ]; then
-                continue
-            fi
-
-            # Parse source environment JSON
-            source_env_id=$(echo "$source_env" | jq -r '.id // empty')
-            source_env_name=$(echo "$source_env" | jq -r '.name // empty')
-            
-            if [ -z "$source_env_id" ] || [ -z "$source_env_name" ]; then
-                log_message "Error: Invalid source environment data"
-                continue
-            fi
-
-            # Skip system namespaces and already processed environments
-            if [[ "$source_env_name" =~ ^(kube-system|kube-public|kube-node-lease|nirmata|ingress-haproxy|velero|default)- ]] || \
-               [ "$source_env_name" = "nginx-123" ]; then
-                log_message "Skipping system/processed environment: $source_env_name"
-                continue
-            fi
-            
-            log_message "Processing source environment: $source_env_name"
-            
-            # Find target environment
-            target_env=$(find_target_environment "$source_env_name" "$target_envs")
-            if [ $? -ne 0 ]; then
-                log_message "No matching target environment found for $source_env_name"
-                continue
-            fi
-            
-            target_env_id=$(echo "$target_env" | jq -r '.id // empty')
-            target_env_name=$(echo "$target_env" | jq -r '.name // empty')
-            
-            if [ -z "$target_env_id" ] || [ -z "$target_env_name" ]; then
-                log_message "Error: Invalid target environment data"
-                continue
-            fi
-            
-            log_message "Found target environment: $target_env_name"
-            
-            # Get applications from both source and target environments
-            source_apps=$(get_catalog_app_details "$source_env_id")
-            if [ -z "$source_apps" ]; then
-                log_message "No applications found in source environment $source_env_name"
-                continue
-            fi
-            
-            target_apps=$(get_catalog_app_details "$target_env_id")
-            if [ -z "$target_apps" ]; then
-                log_message "No applications found in target environment $target_env_name"
-                continue
-            fi
-            
-            # Process each application in source environment
-            echo "$source_apps" | jq -r '.[] | @json' | while read -r source_app; do
-                if [ -z "$source_app" ] || [ "$source_app" = "null" ]; then
-                    continue
-                fi
-                
-                source_app_name=$(echo "$source_app" | jq -r '.name // empty')
-                if [ -z "$source_app_name" ]; then
-                    continue
-                fi
-                
-                # Find matching application in target environment
-                target_app=$(echo "$target_apps" | jq -r --arg name "$source_app_name" \
-                    '.[] | select(.name == $name)')
-                
-                if [ -z "$target_app" ] || [ "$target_app" = "null" ]; then
-                    log_message "No matching application found in target environment for $source_app_name"
-                    continue
-                fi
-                
-                # Get catalog application ID
-                catalog_app_id=$(get_catalog_application "$source_app_name")
-                if [ -z "$catalog_app_id" ]; then
-                    log_message "No catalog application found for $source_app_name"
-                    continue
-                fi
-                
-                log_message "Processing application $source_app_name"
-                update_catalog_reference "$target_env_id" "$source_app_name" "$catalog_app_id"
-            done
-        done
+        log_message "ERROR: Failed to get environments. Exiting."
+        exit 1
     fi
+
+    # Process each environment
+    echo "$environments" | jq -c '.[]' | while read -r env; do
+        local env_id=$(echo "$env" | jq -r '.id')
+        local env_name=$(echo "$env" | jq -r '.name')
+        local cluster_name=$(echo "$env" | jq -r '.clusterName')
+
+        log_message "Processing environment: $env_name (ID: $env_id, Cluster: $cluster_name)"
+
+        # Get applications in environment
+        local applications=$(get_applications "$env_id")
+        if [ $? -ne 0 ]; then
+            log_message "ERROR: Failed to get applications for environment $env_name"
+            continue
+        fi
+
+        # Process each application
+        echo "$applications" | jq -c '.[]' | while read -r app; do
+            local app_id=$(echo "$app" | jq -r '.id')
+            local app_name=$(echo "$app" | jq -r '.name')
+            local base_name=$(echo "$app_name" | sed -E 's/-[0-9]{14}$//' | sed -E 's/-[0-9]+$//')
+
+            if process_application "$app_id" "$app_name" "$cluster_name" "$base_name"; then
+                success_count=$((success_count + 1))
+            else
+                failure_count=$((failure_count + 1))
+                failed_apps+=("$app_name")
+            fi
+        done
+    done
+
+    # Log summary
+    log_message "Catalog reference update process completed"
+    log_message "Successfully processed: $success_count applications"
+    if [ $failure_count -gt 0 ]; then
+        log_message "Failed to process: $failure_count applications"
+        log_message "Failed applications: ${failed_apps[*]}"
+    fi
+    log_message "Log file: $LOG_FILE"
+}
+
+# Main script
+log_message "Starting catalog reference update process"
+
+# Check authentication first
+if ! check_auth; then
+    log_message "ERROR: Authentication check failed. Exiting."
+    exit 1
 fi
+
+# Get all environments
+log_message "Getting environments..."
+environments=$(curl -s -H "Authorization: NIRMATA-API $TOKEN" "$API_ENDPOINT/environments/api/environments?fields=id,name,clusterName")
+
+# Process each environment
+echo "$environments" | jq -c '.[]' | while read -r env; do
+    env_id=$(echo "$env" | jq -r '.id')
+    env_name=$(echo "$env" | jq -r '.name')
+    cluster_name=$(echo "$env" | jq -r '.clusterName')
+    
+    log_message "Processing environment: $env_name (ID: $env_id, Cluster: $cluster_name)"
+    
+    # Get applications in the environment
+    applications=$(curl -s -H "Authorization: NIRMATA-API $TOKEN" "$API_ENDPOINT/environments/api/environments/$env_id/applications")
+    
+    # Process each application
+    echo "$applications" | jq -c '.[]' | while read -r app; do
+        app_id=$(echo "$app" | jq -r '.id')
+        app_name=$(echo "$app" | jq -r '.name')
+        
+        log_message "Processing application: $app_name (ID: $app_id)"
+        
+        # Extract base name (remove cluster suffix and timestamp if present)
+        base_name=$(echo "$app_name" | sed -E "s/-${SOURCE_CLUSTER_NAME}-[0-9]+$//" | sed -E "s/-${DEST_CLUSTER_NAME}-[0-9]+$//")
+        
+        # Find catalog application
+        if catalog_app_id=$(find_catalog_application "$app_name" "$base_name" "$cluster_name"); then
+            # Update catalog reference
+            if update_catalog_reference "$app_id" "$catalog_app_id" "$app_name"; then
+                log_message "Successfully processed application: $app_name"
+            else
+                log_message "ERROR: Failed to update catalog reference for application: $app_name"
+            fi
+        else
+            log_message "No catalog application found for: $app_name"
+        fi
+    done
+done
 
 log_message "Catalog reference update process completed"
 log_message "Log file: $LOG_FILE" 

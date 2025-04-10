@@ -374,15 +374,31 @@ echo "$SOURCE_ENVIRONMENTS" | jq -c '.' | while read -r env; do
                 log_message "Creating quota: $QUOTA_NAME"
                 
                 # Extract all quota values
-                CPU=$(echo "$QUOTA_SPEC" | jq -r '.hard."cpu"')
-                MEMORY=$(echo "$QUOTA_SPEC" | jq -r '.hard."memory"')
-                EPHEMERAL_STORAGE=$(echo "$QUOTA_SPEC" | jq -r '.hard."ephemeral-storage"')
-                REQUESTS_MEMORY=$(echo "$QUOTA_SPEC" | jq -r '.hard."requests.memory"')
-                REQUESTS_CPU=$(echo "$QUOTA_SPEC" | jq -r '.hard."requests.cpu"')
-                REQUESTS_EPHEMERAL_STORAGE=$(echo "$QUOTA_SPEC" | jq -r '.hard."requests.ephemeral-storage"')
-                LIMITS_CPU=$(echo "$QUOTA_SPEC" | jq -r '.hard."limits.cpu"')
-                LIMITS_MEMORY=$(echo "$QUOTA_SPEC" | jq -r '.hard."limits.memory"')
-                LIMITS_EPHEMERAL_STORAGE=$(echo "$QUOTA_SPEC" | jq -r '.hard."limits.ephemeral-storage"')
+                # Check if the 'hard' field exists and has the right structure
+                if echo "$QUOTA_SPEC" | jq -e '.hard' > /dev/null 2>&1; then
+                    # Standard structure extraction
+                    CPU=$(echo "$QUOTA_SPEC" | jq -r '.hard."cpu" // empty')
+                    MEMORY=$(echo "$QUOTA_SPEC" | jq -r '.hard."memory" // empty')
+                    EPHEMERAL_STORAGE=$(echo "$QUOTA_SPEC" | jq -r '.hard."ephemeral-storage" // empty')
+                    REQUESTS_MEMORY=$(echo "$QUOTA_SPEC" | jq -r '.hard."requests.memory" // empty')
+                    REQUESTS_CPU=$(echo "$QUOTA_SPEC" | jq -r '.hard."requests.cpu" // empty')
+                    REQUESTS_EPHEMERAL_STORAGE=$(echo "$QUOTA_SPEC" | jq -r '.hard."requests.ephemeral-storage" // empty')
+                    LIMITS_CPU=$(echo "$QUOTA_SPEC" | jq -r '.hard."limits.cpu" // empty')
+                    LIMITS_MEMORY=$(echo "$QUOTA_SPEC" | jq -r '.hard."limits.memory" // empty')
+                    LIMITS_EPHEMERAL_STORAGE=$(echo "$QUOTA_SPEC" | jq -r '.hard."limits.ephemeral-storage" // empty')
+                else
+                    # Handle alternative structure or missing fields
+                    log_message "Quota has non-standard structure or is missing 'hard' field. Creating basic quota."
+                    CPU=""
+                    MEMORY=""
+                    EPHEMERAL_STORAGE=""
+                    REQUESTS_MEMORY=""
+                    REQUESTS_CPU=""
+                    REQUESTS_EPHEMERAL_STORAGE=""
+                    LIMITS_CPU=""
+                    LIMITS_MEMORY=""
+                    LIMITS_EPHEMERAL_STORAGE=""
+                fi
                 
                 # Build quota spec with all resources
                 QUOTA_PAYLOAD="{
