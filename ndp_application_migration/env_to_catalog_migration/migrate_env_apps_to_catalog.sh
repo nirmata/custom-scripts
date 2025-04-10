@@ -76,17 +76,110 @@ if [ -z "$ENVIRONMENTS" ]; then
     exit 1
 fi
 
+# Function to process a single environment
+process_environment() {
+    local SOURCE_ENV=$1
+    local processed_count=0
+    local success_count=0
+    local skip_count=0
+    local fail_count=0
+    local has_git_apps=false
+
+    # First check if there are any Git-based applications
+    echo "Checking for Git-based applications in environment $SOURCE_ENV..."
+    APPS_RESPONSE=$(curl -s -H "Authorization: NIRMATA-API $TOKEN" "$API_ENDPOINT/environments/api/environments/$SOURCE_CLUSTER_ID/applications?fields=id,name,gitUpstream,yamlData")
+    
+    if [ "$(echo "$APPS_RESPONSE" | jq 'length')" -eq 0 ]; then
+        echo "No applications found in environment $SOURCE_ENV"
+        return
+    fi
+
+    # Check if any application has Git upstream
+    while read -r app; do
+        if [ -n "$app" ]; then
+            APP_ID=$(echo "$app" | jq -r '.id')
+            APP_DETAILS=$(curl -s -H "Authorization: NIRMATA-API $TOKEN" "$API_ENDPOINT/environments/api/applications/$APP_ID")
+            GIT_UPSTREAM_COUNT=$(echo "$APP_DETAILS" | jq '.gitUpstream | length')
+            
+            if [ "$GIT_UPSTREAM_COUNT" -gt 0 ]; then
+                has_git_apps=true
+                break
+            fi
+        fi
+    done < <(echo "$APPS_RESPONSE" | jq -c '.[]')
+
+    # Only proceed with catalog creation if there are Git-based applications
+    if [ "$has_git_apps" = true ]; then
+        # Get catalog name from environment name, removing any unnecessary suffixes
+        CATALOG_NAME=$(echo "$SOURCE_ENV" | sed 's/-[0-9].*$//')
+        
+        # Check if catalog already exists
+        echo "Checking if catalog $CATALOG_NAME already exists..."
+        CATALOG_RESPONSE=$(curl -s -H "Authorization: NIRMATA-API $TOKEN" "$API_ENDPOINT/catalog/api/catalogs?fields=id,name")
+        CATALOG_ID=$(echo "$CATALOG_RESPONSE" | jq -r ".[] | select(.name == \"$CATALOG_NAME\") | .id")
+
+        if [ -n "$CATALOG_ID" ]; then
+            echo "Catalog $CATALOG_NAME already exists with ID: $CATALOG_ID"
+        else
+            echo "Creating new catalog: $CATALOG_NAME"
+            CATALOG_PAYLOAD=$(cat <<EOF
+{
+    "name": "$CATALOG_NAME",
+    "description": "Migrated from environment $SOURCE_ENV",
+    "service": "Catalog",
+    "modelIndex": "Catalog"
+}
+EOF
+)
+            CATALOG_RESPONSE=$(curl -s -X POST -H "Authorization: NIRMATA-API $TOKEN" -H "Content-Type: application/json" -d "$CATALOG_PAYLOAD" "$API_ENDPOINT/catalog/api/catalogs")
+            CATALOG_ID=$(echo "$CATALOG_RESPONSE" | jq -r '.id')
+            
+            if [ -n "$CATALOG_ID" ]; then
+                echo "Successfully created catalog with ID: $CATALOG_ID"
+            else
+                echo "Failed to create catalog"
+                return 1
+            fi
+        fi
+
+        # Process applications
+        while read -r app; do
+            if [ -n "$app" ]; then
+                APP_ID=$(echo "$app" | jq -r '.id')
+                APP_NAME=$(echo "$app" | jq -r '.name')
+                GIT_UPSTREAM_COUNT=$(echo "$app" | jq '.gitUpstream | length')
+                
+                ((processed_count++))
+                
+                if [ "$GIT_UPSTREAM_COUNT" -gt 0 ]; then
+                    echo "Processing Git-based application: $APP_NAME"
+                    migrate_application "$APP_ID" "$CATALOG_ID" "$SOURCE_ENV"
+                    if [ $? -eq 0 ]; then
+                        ((success_count++))
+                    else
+                        ((fail_count++))
+                    fi
+                else
+                    echo "Skipping non-Git application: $APP_NAME"
+                    ((skip_count++))
+                fi
+            fi
+        done < <(echo "$APPS_RESPONSE" | jq -c '.[]')
+    else
+        echo "No Git-based applications found in environment $SOURCE_ENV, skipping catalog creation"
+    fi
+
+    # Log migration summary for this environment
+    echo "=== Migration Summary for $SOURCE_ENV ===" >> "$LOG_FILE"
+    echo "Applications processed: $processed_count" >> "$LOG_FILE"
+    echo "Successfully migrated: $success_count" >> "$LOG_FILE"
+    echo "Skipped (non-Git): $skip_count" >> "$LOG_FILE"
+    echo "Failed: $fail_count" >> "$LOG_FILE"
+    echo "=====================================" >> "$LOG_FILE"
+}
+
 # Process each environment
 echo "$ENVIRONMENTS" | while read -r SOURCE_ENV; do
-    # Extract catalog name from environment name
-    # For system environments that include cluster name, remove it
-    if [[ "$SOURCE_ENV" == *"-${SOURCE_CLUSTER_NAME}" ]]; then
-        CATALOG_NAME=$(echo "$SOURCE_ENV" | sed "s/-${SOURCE_CLUSTER_NAME}$//")
-    else
-        # For custom environments, use the name as is
-        CATALOG_NAME="$SOURCE_ENV"
-    fi
-    
     # Change logging setup to use source cluster name instead of timestamp
     LOG_FILE="./migration_${SOURCE_CLUSTER_NAME}_to_${DEST_CLUSTER_NAME}.log"
     
@@ -95,7 +188,7 @@ echo "$ENVIRONMENTS" | while read -r SOURCE_ENV; do
 === Migration Report ===
 Date: $(date)
 Source Environment: $SOURCE_ENV
-Target Catalog: $CATALOG_NAME
+Target Catalog: $SOURCE_ENV
 API Endpoint: $API_ENDPOINT
 Cluster: $SOURCE_CLUSTER_NAME
 
@@ -106,7 +199,7 @@ EOF
     echo "=== Migration Configuration ==="
     echo "API Endpoint: $API_ENDPOINT"
     echo "Source Environment: $SOURCE_ENV"
-    echo "Target Catalog Name: $CATALOG_NAME"
+    echo "Target Catalog Name: $SOURCE_ENV"
     echo "Cluster Name: $SOURCE_CLUSTER_NAME"
     echo "==========================="
 
@@ -159,200 +252,8 @@ EOF
     ENV_ID=$(echo "$ENV_DETAILS" | jq -r '.id')
     echo "Found source environment ID: $ENV_ID"
 
-    # Get applications from source environment
-    echo "Getting applications from source environment..."
-    APPS_RESPONSE=$(curl -s -H "Authorization: NIRMATA-API $TOKEN" "$API_ENDPOINT/environments/api/environments/$ENV_ID/applications?fields=id,name,gitUpstream,yamlData")
-    if [ $? -ne 0 ]; then
-        echo "Error: Failed to get applications. Response: $APPS_RESPONSE"
-        continue
-    fi
-
-    # Get or create catalog
-    CATALOG_ID=$(check_catalog_exists "$CATALOG_NAME")
-    if [ -z "$CATALOG_ID" ]; then
-        log_message "Creating new catalog '$CATALOG_NAME'..."
-        CATALOG_ID=$(create_catalog "$CATALOG_NAME")
-        if [ -z "$CATALOG_ID" ]; then
-            log_message "✗ Failed to create catalog '$CATALOG_NAME'"
-            continue
-        fi
-    fi
-
-    log_message "Using catalog ID: $CATALOG_ID"
-
-    # Add counters before processing applications
-    processed_count=0
-    success_count=0
-    skip_count=0
-    fail_count=0
-
-    # Process each application
-    echo "$APPS_RESPONSE" | jq -c '.[]' | while read -r app; do
-        processed_count=$((processed_count + 1))
-        
-        APP_NAME=$(echo "$app" | jq -r '.name')
-        APP_ID=$(echo "$app" | jq -r '.id')
-        log_message "\nProcessing application: $APP_NAME"
-        
-        # Get detailed application info
-        APP_DETAILS=$(curl -s -H "Authorization: NIRMATA-API $TOKEN" "$API_ENDPOINT/environments/api/applications/$APP_ID")
-        
-        # Check if it's a Git-based application - improved detection
-        GIT_UPSTREAM_COUNT=$(echo "$APP_DETAILS" | jq '.gitUpstream | length')
-        if [ "$GIT_UPSTREAM_COUNT" -eq 0 ]; then
-            log_message "⚠ Skipping $APP_NAME - Not a Git-based application (no gitUpstream)"
-            skip_count=$((skip_count + 1))
-            continue
-        fi
-
-        # Get the first Git upstream ID
-        GIT_UPSTREAM_ID=$(echo "$APP_DETAILS" | jq -r '.gitUpstream[0].id')
-        if [ -z "$GIT_UPSTREAM_ID" ] || [ "$GIT_UPSTREAM_ID" = "null" ]; then
-            log_message "⚠ Skipping $APP_NAME - Invalid Git upstream ID"
-            skip_count=$((skip_count + 1))
-            continue
-        fi
-        
-        log_message "✓ Detected Git-based application with upstream ID: $GIT_UPSTREAM_ID"
-        
-        # Create name for the application using destination cluster name
-        UNIQUE_APP_NAME="${APP_NAME}-${DEST_CLUSTER_NAME}"
-        
-        # Check if application already exists
-        EXISTING_APP=$(check_application_exists "$UNIQUE_APP_NAME")
-        if [ ! -z "$EXISTING_APP" ]; then
-            EXISTING_APP_ID=$(echo "$EXISTING_APP" | jq -r '.id')
-            log_message "⚠ Application $UNIQUE_APP_NAME already exists with ID: $EXISTING_APP_ID"
-            # Add timestamp to make the name unique
-            TIMESTAMP=$(date +%Y%m%d%H%M%S)
-            UNIQUE_APP_NAME="${APP_NAME}-${DEST_CLUSTER_NAME}-${TIMESTAMP}"
-            log_message "  Creating with new unique name: $UNIQUE_APP_NAME"
-        fi
-        
-        log_message "\nMigrating application:"
-        log_message "===================="
-        log_message "Source:"
-        log_message "  - Environment: $SOURCE_ENV"
-        log_message "  - Application: $APP_NAME"
-        log_message "  - Git Upstream ID: $GIT_UPSTREAM_ID"
-        log_message "\nTarget:"
-        log_message "  - Catalog: $CATALOG_NAME"
-        log_message "  - New Name: $UNIQUE_APP_NAME"
-        
-        # Get Git upstream details and credentials
-        GIT_DETAILS=$(curl -s -H "Authorization: NIRMATA-API $TOKEN" "$API_ENDPOINT/environments/api/gitupstreams/$GIT_UPSTREAM_ID")
-        REPO_URL=$(echo "$GIT_DETAILS" | jq -r '.repository')
-        BRANCH=$(echo "$GIT_DETAILS" | jq -r '.branch')
-        PATH_VALUE=$(echo "$GIT_DETAILS" | jq -r '.path // "/"')
-        
-        # Get Git credential details from source GitUpstream
-        if [ -n "$GIT_UPSTREAM_ID" ]; then
-            GIT_CRED_ID=$(echo "$GIT_DETAILS" | jq -r '.credential.id')
-        fi
-
-        # Create base application in catalog
-        APP_PAYLOAD=$(cat <<EOF
-{
-    "name": "$UNIQUE_APP_NAME",
-    "modelIndex": "Application",
-    "parent": {
-        "id": "$CATALOG_ID",
-        "service": "Catalog",
-        "modelIndex": "Catalog",
-        "childRelation": "applications"
-    },
-    "catalog": "$CATALOG_ID",
-    "description": "Migrated from environment $SOURCE_ENV (Original: $APP_NAME)",
-    "upstreamType": "git",
-    "state": "running",
-    "run": "$APP_NAME",
-    "labels": {
-        "nirmata.io/application.run": "$APP_NAME"
-    }
-}
-EOF
-)
-
-        log_message "Creating application with payload: $APP_PAYLOAD"
-        APP_RESPONSE=$(curl -s -H "Authorization: NIRMATA-API $TOKEN" -H "Content-Type: application/json" -d "$APP_PAYLOAD" "$API_ENDPOINT/catalog/api/applications")
-
-        # Check for application creation errors
-        if echo "$APP_RESPONSE" | jq -e '.errors' > /dev/null; then
-            ERROR_MSG=$(echo "$APP_RESPONSE" | jq -r '.message')
-            log_message "✗ Failed to create application: $ERROR_MSG"
-            fail_count=$((fail_count + 1))
-            continue
-        fi
-
-        NEW_APP_ID=$(echo "$APP_RESPONSE" | jq -r '.id')
-        if [ -z "$NEW_APP_ID" ] || [ "$NEW_APP_ID" = "null" ]; then
-            log_message "✗ Failed to get new application ID for $UNIQUE_APP_NAME"
-            fail_count=$((fail_count + 1))
-            continue
-        fi
-
-        log_message "✓ Created new application with ID: $NEW_APP_ID"
-
-        # Create GitUpstream payload
-        GIT_UPSTREAM_PAYLOAD=$(cat << EOF
-{
-  "repository": "$REPO_URL",
-  "branch": "$BRANCH",
-  "parent": {
-    "id": "$NEW_APP_ID",
-    "service": "Catalog",
-    "modelIndex": "Application",
-    "childRelation": "gitUpstream"
-  },
-  "additionalProperties": {
-    "path": "$PATH_VALUE",
-    "application": "$NEW_APP_ID",
-    "credential": {
-      "service": "Environments",
-      "modelIndex": "GitCredential",
-      "id": "$GIT_CRED_ID"
-    }
-  },
-  "gitCredential": {
-    "service": "Environments",
-    "modelIndex": "GitCredential",
-    "id": "$GIT_CRED_ID"
-  }
-}
-EOF
-)
-
-        # Create GitUpstream for the application with credentials
-        log_message "Creating GitUpstream with payload: $GIT_UPSTREAM_PAYLOAD"
-        GIT_UPSTREAM_RESPONSE=$(curl -s -H "Authorization: NIRMATA-API $TOKEN" -H "Content-Type: application/json" -d "$GIT_UPSTREAM_PAYLOAD" "$API_ENDPOINT/catalog/api/gitupstreams")
-
-        if [ $? -eq 0 ]; then
-            log_message "✓ Successfully created GitUpstream"
-            success_count=$((success_count + 1))
-        else
-            log_message "⚠ Failed to create GitUpstream"
-            log_message "Response: $GIT_UPSTREAM_RESPONSE"
-            fail_count=$((fail_count + 1))
-        fi
-        
-        log_message "\nMigration Result: ✓ SUCCESS"
-        log_message "  - New Application ID: $NEW_APP_ID"
-        log_message "  - Git Repository: $REPO_URL"
-        log_message "  - Branch: $BRANCH"
-        log_message "  - Path: $PATH_VALUE"
-        
-        log_message "\n----------------------------------------\n"
-    done
-
-    # Update summary with more details
-    log_message "\nMigration Summary:"
-    log_message "=================="
-    log_message "Environment: $SOURCE_ENV -> Catalog: $CATALOG_NAME"
-    log_message "Total applications processed: $((processed_count))"
-    log_message "Successfully migrated: $((success_count))"
-    log_message "Skipped applications: $((skip_count))"
-    log_message "Failed migrations: $((fail_count))"
-    log_message "\nLog file: $LOG_FILE"
+    # Process the environment
+    process_environment "$SOURCE_ENV"
 done
 
 echo "Migration process completed. Check migration logs for detailed report."
