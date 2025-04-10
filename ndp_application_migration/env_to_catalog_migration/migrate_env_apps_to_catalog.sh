@@ -10,6 +10,7 @@ API_ENDPOINT=$1
 TOKEN=$2
 SOURCE_CLUSTER_NAME=$3
 DEST_CLUSTER_NAME=$4
+LOG_FILE="migration_${SOURCE_CLUSTER_NAME}_to_${DEST_CLUSTER_NAME}.log"
 
 # Function to log messages to both console and file
 log_message() {
@@ -76,6 +77,86 @@ if [ -z "$ENVIRONMENTS" ]; then
     exit 1
 fi
 
+# Function to get consistent catalog app name
+get_catalog_app_name() {
+    local app_name=$1
+    local source_env=$2
+    local cluster_name=$3
+    
+    # Extract base name without any cluster suffixes or timestamps
+    local base_name=$(echo "$app_name" | sed -E 's/-[0-9]+(-[0-9]+)?$//' | sed "s/-${SOURCE_CLUSTER_NAME}$//")
+    
+    # Create consistent catalog app name with cluster identifier
+    echo "app-${base_name}-${cluster_name}"
+}
+
+# Function to migrate application
+migrate_application() {
+    local APP_ID=$1
+    local CATALOG_ID=$2
+    local SOURCE_ENV=$3
+    
+    # Get application details
+    local APP_DETAILS=$(curl -s -H "Authorization: NIRMATA-API $TOKEN" "$API_ENDPOINT/environments/api/applications/$APP_ID")
+    local APP_NAME=$(echo "$APP_DETAILS" | jq -r '.name')
+    
+    # Get consistent catalog app name with cluster identifier
+    local CATALOG_APP_NAME=$(get_catalog_app_name "$APP_NAME" "$SOURCE_ENV" "$SOURCE_CLUSTER_NAME")
+    
+    # Check if catalog app already exists
+    local EXISTING_APP=$(check_application_exists "$CATALOG_APP_NAME")
+    if [ ! -z "$EXISTING_APP" ]; then
+        echo "Catalog application $CATALOG_APP_NAME already exists, skipping creation"
+        return 0
+    fi
+    
+    # Get Git upstream details
+    local GIT_UPSTREAM=$(echo "$APP_DETAILS" | jq -r '.gitUpstream[0]')
+    if [ -z "$GIT_UPSTREAM" ] || [ "$GIT_UPSTREAM" = "null" ]; then
+        echo "No Git upstream found for application $APP_NAME"
+        return 1
+    fi
+    
+    # Get Git credential reference
+    local GIT_CRED_NAME=$(get_git_credential_reference "$(echo "$GIT_UPSTREAM" | jq -r '.id')")
+    if [ -z "$GIT_CRED_NAME" ]; then
+        echo "No Git credential found for application $APP_NAME"
+        return 1
+    fi
+    
+    # Create catalog application with cluster-specific configuration
+    local CATALOG_APP_PAYLOAD=$(cat <<EOF
+{
+    "name": "$CATALOG_APP_NAME",
+    "description": "Migrated from environment $SOURCE_ENV in cluster $SOURCE_CLUSTER_NAME",
+    "catalog": "$CATALOG_ID",
+    "gitUpstream": $GIT_UPSTREAM,
+    "gitCredential": "$GIT_CRED_NAME",
+    "service": "Catalog",
+    "modelIndex": "Application",
+    "metadata": {
+        "sourceCluster": "$SOURCE_CLUSTER_NAME",
+        "sourceEnvironment": "$SOURCE_ENV",
+        "originalAppName": "$APP_NAME"
+    }
+}
+EOF
+)
+    
+    local CATALOG_APP_RESPONSE=$(curl -s -X POST -H "Authorization: NIRMATA-API $TOKEN" \
+        -H "Content-Type: application/json" \
+        -d "$CATALOG_APP_PAYLOAD" \
+        "$API_ENDPOINT/catalog/api/applications")
+    
+    if [ $? -eq 0 ] && [ ! -z "$CATALOG_APP_RESPONSE" ]; then
+        echo "Successfully created catalog application: $CATALOG_APP_NAME"
+        return 0
+    else
+        echo "Failed to create catalog application: $CATALOG_APP_NAME"
+        return 1
+    fi
+}
+
 # Function to process a single environment
 process_environment() {
     local SOURCE_ENV=$1
@@ -87,7 +168,7 @@ process_environment() {
 
     # First check if there are any Git-based applications
     echo "Checking for Git-based applications in environment $SOURCE_ENV..."
-    APPS_RESPONSE=$(curl -s -H "Authorization: NIRMATA-API $TOKEN" "$API_ENDPOINT/environments/api/environments/$SOURCE_CLUSTER_ID/applications?fields=id,name,gitUpstream,yamlData")
+    APPS_RESPONSE=$(curl -s -H "Authorization: NIRMATA-API $TOKEN" "$API_ENDPOINT/environments/api/applications?fields=id,name,gitUpstream,yamlData")
     
     if [ "$(echo "$APPS_RESPONSE" | jq 'length')" -eq 0 ]; then
         echo "No applications found in environment $SOURCE_ENV"
@@ -98,8 +179,7 @@ process_environment() {
     while read -r app; do
         if [ -n "$app" ]; then
             APP_ID=$(echo "$app" | jq -r '.id')
-            APP_DETAILS=$(curl -s -H "Authorization: NIRMATA-API $TOKEN" "$API_ENDPOINT/environments/api/applications/$APP_ID")
-            GIT_UPSTREAM_COUNT=$(echo "$APP_DETAILS" | jq '.gitUpstream | length')
+            GIT_UPSTREAM_COUNT=$(echo "$app" | jq '.gitUpstream | length')
             
             if [ "$GIT_UPSTREAM_COUNT" -gt 0 ]; then
                 has_git_apps=true
@@ -202,55 +282,6 @@ EOF
     echo "Target Catalog Name: $SOURCE_ENV"
     echo "Cluster Name: $SOURCE_CLUSTER_NAME"
     echo "==========================="
-
-    # Function to get environment details
-    get_env_details() {
-        local env_name=$1
-        local response=$(curl -s -H "Authorization: NIRMATA-API $TOKEN" "$API_ENDPOINT/environments/api/environments?fields=id,name" | jq -r ".[] | select(.name == \"$env_name\")")
-        if [ -z "$response" ]; then
-            echo "Error: Environment $env_name not found"
-            return 1
-        fi
-        echo "$response"
-    }
-
-    # Function to check if catalog exists
-    check_catalog_exists() {
-        local catalog_name=$1
-        local response=$(curl -s -H "Authorization: NIRMATA-API $TOKEN" "$API_ENDPOINT/catalog/api/catalogs?fields=id,name" | jq -r ".[] | select(.name == \"$catalog_name\") | .id")
-        if [ ! -z "$response" ]; then
-            echo "$response"
-        fi
-    }
-
-    # Function to create a new catalog
-    create_catalog() {
-        local catalog_name=$1
-        local payload="{\"name\":\"$catalog_name\",\"modelIndex\":\"Catalog\",\"description\":\"Migrated from environment $SOURCE_ENV\"}"
-        local response=$(curl -s -X POST -H "Authorization: NIRMATA-API $TOKEN" -H "Content-Type: application/json" -d "$payload" "$API_ENDPOINT/catalog/api/catalogs")
-        
-        # Check if the response contains an error
-        if echo "$response" | jq -e '.errors' > /dev/null; then
-            local error_msg=$(echo "$response" | jq -r '.message')
-            echo "Error: Failed to create catalog. Response: $error_msg"
-            return 1
-        fi
-        
-        # Extract the catalog ID from the response
-        local catalog_id=$(echo "$response" | jq -r '.id')
-        if [ -z "$catalog_id" ] || [ "$catalog_id" = "null" ]; then
-            echo "Error: Failed to extract catalog ID from response"
-            return 1
-        fi
-        
-        echo "$catalog_id"
-    }
-
-    # Get source environment details
-    echo "Getting source environment details..."
-    ENV_DETAILS=$(get_env_details "$SOURCE_ENV")
-    ENV_ID=$(echo "$ENV_DETAILS" | jq -r '.id')
-    echo "Found source environment ID: $ENV_ID"
 
     # Process the environment
     process_environment "$SOURCE_ENV"
