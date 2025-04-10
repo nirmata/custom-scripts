@@ -1,229 +1,149 @@
 # NDP Application Migration Scripts
 
-This directory contains scripts for migrating applications between environments in Nirmata. The migration process is divided into three main steps, each handled by a specific script.
+This repository contains scripts to facilitate the migration of applications between environments in Nirmata.
 
 ## Prerequisites
+- `curl` installed
+- `jq` installed
+- Bash shell
+- Nirmata API access token
+- Access to source and destination environments
 
-Before running these scripts, ensure you have:
-- Bash shell environment
-- `curl` for API calls
-- `jq` for JSON processing
-- Nirmata API access token with appropriate permissions
-- Access to both source and destination clusters
+## Overview
+The repository contains three main scripts:
 
-## Scripts Overview
+1. **restore_env_settings.sh**
+   - Restores environment settings from backup
+   - Handles environment-specific configurations
+   - Validates environment access and permissions
+   - Supports transaction-based updates
 
-### 1. Environment Settings Restoration (`environment-restore/restore_env_settings.sh`)
+2. **migrate_env_apps_to_catalog.sh**
+   - Migrates applications from environments to catalogs
+   - Preserves Git repository configurations
+   - Handles Git credentials securely
+   - Creates unique application names with timestamps
+   - Supports automatic catalog creation
+   - Implements enhanced error handling and logging
+   - Uses transaction-based updates for reliability
 
-This script copies environment settings from a source cluster to a destination cluster. It handles:
-- Environment creation if not present
-- ACLs and permissions
-- Resource quotas and limit ranges
-- Labels and update policies
-
-**Usage:**
-```bash
-./restore_env_settings.sh <api-url> <token> <source-cluster> <destination-cluster>
-```
-
-### 2. Environment to Catalog Migration (`env_to_catalog_migration/migrate_env_apps_to_catalog.sh`)
-
-This script moves applications from environments to catalogs. It:
-- Identifies applications in source environments
-- Creates corresponding catalog applications
-- Handles Git-based applications appropriately
-
-**Usage:**
-```bash
-./migrate_env_apps_to_catalog.sh <api-url> <token> <source-cluster>
-```
-
-### 3. Catalog Reference Update (`catalog-reference-update/update_catalog_references.sh`)
-
-This script updates catalog references for applications in the destination cluster. It:
-- Maps environments to catalogs
-- Updates application references to point to catalog applications
-- Handles both Git-based and non-Git applications
-- Supports various application types (standard, PVC-based)
-- Verifies and validates catalog reference updates
-- Provides detailed logging of the update process
-
-The script now includes improved handling for:
-- Application ID-based updates for more reliable changes
-- Complete payload with all required fields
-- Proper parent-child relationships
-- Multiple update attempts with different methods if needed
-- Verification of successful updates
-
-**Usage:**
-```bash
-./update_catalog_references.sh <api-url> <token> <source-cluster> <destination-cluster>
-```
+3. **update_catalog_references.sh**
+   - Updates catalog references in environments
+   - Maintains application relationships
+   - Implements intelligent pattern matching for catalog applications
+   - Supports multiple naming patterns for catalog lookup
+   - Uses transaction-based updates for reliability
+   - Enhanced error handling and logging
+   - Automatic retry mechanism for failed updates
 
 ## Migration Process
 
-1. First, run `restore_env_settings.sh` to copy environment settings and create environments:
-   - Copies environment settings (owner, labels, update policies)
-   - Creates and configures ACLs
-   - Sets up resource quotas and limit ranges
+### Step 1: Environment Settings Restoration
+```bash
+./restore_env_settings.sh <api_endpoint> <token> <cluster_name>
+```
 
-2. Then, run `migrate_env_apps_to_catalog.sh` to move applications to catalogs:
-   - Creates catalog applications from environment applications
-   - Preserves Git repository information
-   - Handles different application types appropriately
+### Step 2: Application Migration to Catalog
+```bash
+./migrate_env_apps_to_catalog.sh <api_endpoint> <token> <source_cluster_name> <destination_cluster_name>
+```
 
-3. Finally, run `update_catalog_references.sh` to update application references:
-   - Updates applications to use catalog references
-   - Verifies successful updates
-   - Handles different naming patterns and application types
+### Step 3: Update Catalog References
+```bash
+./update_catalog_references.sh <api_endpoint> <token> <source_cluster_name> <destination_cluster_name>
+```
 
 ## Example Commands
-
 ```bash
-# Step 1: Restore environment settings
-./restore_env_settings.sh https://pe420.nirmata.co "your-token" "123-app-migration" "129-app-migration"
+# Restore environment settings
+./restore_env_settings.sh https://pe420.nirmata.co "YOUR_API_TOKEN" "123-app-migration"
 
-# Step 2: Migrate applications to catalog
-./migrate_env_apps_to_catalog.sh https://pe420.nirmata.co "your-token" "123-app-migration"
+# Migrate applications to catalog
+./migrate_env_apps_to_catalog.sh https://pe420.nirmata.co "YOUR_API_TOKEN" "123-app-migration" "129-app-migration"
 
-# Step 3: Update catalog references
-./update_catalog_references.sh https://pe420.nirmata.co "your-token" "123-app-migration" "129-app-migration"
+# Update catalog references
+./update_catalog_references.sh https://pe420.nirmata.co "YOUR_API_TOKEN" "123-app-migration" "129-app-migration"
 ```
 
 ## Log Files
+- Migration logs: `logs/migration_<cluster_name>.log`
+- Catalog reference update logs: `logs/catalog_reference_update_<timestamp>.log`
+- Error logs: `logs/error_<timestamp>.log`
+- Debug logs: `logs/debug_<timestamp>.log`
 
-Each script generates detailed logs in the following locations:
-- Environment restore: `logs/environment_restore_YYYYMMDD_HHMMSS.log`
-- Catalog migration: `logs/catalog_migration_YYYYMMDD_HHMMSS.log`
-- Reference update: `logs/catalog_reference_update_YYYYMMDD_HHMMSS.log`
+## Environment and Catalog Correlation
+- Environment names are used as catalog names
+- Applications maintain their base names with cluster suffixes
+- Timestamps are added to prevent naming conflicts
+- Intelligent pattern matching for catalog application lookup
+- Support for multiple naming conventions
 
-## Environment and Catalog Correlations
-
-### Environment Name Handling
-
-The scripts handle different environment naming patterns:
-
-1. **Environments with Cluster Suffix**:
-   - Source: `default-123-app-migration`
-   - Destination: `default-129-app-migration`
-
-2. **Environments without Cluster Suffix**:
-   - Source: `nginx`
-   - Destination: `nginx-129-app-migration` (created by Commvault)
-
-### Commvault Behavior
-
-When Commvault restores namespaces:
-- It appends the cluster name to the namespace: `ns_name-$(cluster-name)`
-- The script expects this behavior and maps environments accordingly
-
-### Example Scenarios
-
-1. **Environment with Cluster Suffix**:
-   ```
-   Source: default-123-app-migration
-   Destination: default-129-app-migration
-   Action: Direct mapping, copy all settings
-   ```
-
-2. **Environment without Suffix**:
-   ```
-   Source: nginx
-   Destination: nginx-129-app-migration (created by Commvault)
-   Action: Wait for Commvault restore, then copy settings
-   ```
-
-3. **Mixed Environment Names**:
-   ```
-   Source: [mix of suffixed and non-suffixed names]
-   Destination: [Commvault-restored names with cluster suffix]
-   Action: Handle each case appropriately
-   ```
+## Git Credential Handling
+The migration script includes enhanced Git credential management:
+- Preserves Git credential names without copying sensitive data
+- Supports both `credential` and `gitCredential` field formats
+- Stores credential names in `additionalProperties`
+- Maintains security by only transferring credential references
+- Example: "git-vikash" credential name is preserved while sensitive data remains secure
 
 ## Important Notes
-
-1. **Order of Operations**:
-   - Always restore environment settings first
-   - Then migrate applications to catalogs
-   - Finally update catalog references
-   - Each step builds on the previous one
-
-2. **Error Handling**:
-   - Each script logs errors and continues processing
-   - Failed operations are logged for review
-   - Scripts can be run multiple times safely
-   - Verification steps ensure successful updates
-
-3. **Idempotency**:
-   - All scripts are idempotent
-   - Running them multiple times produces the same result
-   - Existing settings are updated rather than duplicated
-   - Updates are verified before proceeding
-
-4. **Environment Creation**:
-   - The restore script creates missing environments
-   - It handles both pre-existing and Commvault-restored environments
-   - Settings are copied only after environment creation
-   - Owner details, labels, and update policies are preserved
-
-5. **Catalog Mapping**:
-   - Catalogs are mapped using environment base names
-   - The update script finds the correct catalog for each environment
-   - Application references are updated to point to catalog applications
-   - Updates are verified and retried if necessary
+1. Run scripts in the correct order
+2. Verify environment access before migration
+3. Check Git credential configuration
+4. Monitor logs during migration
+5. Validate application state post-migration
+6. Ensure proper permissions for API operations
+7. Verify catalog application existence before updates
 
 ## Version Compatibility
+- Tested with Nirmata API v1.0
+- Compatible with current Git credential formats
+- Supports modern Kubernetes versions
+- Enhanced error handling and logging
+- Transaction-based updates for reliability
 
-These scripts are compatible with:
-- Nirmata Enterprise Platform 3.0 and above
-- Kubernetes 1.20 and above
-- Commvault 11.22 and above
+## Troubleshooting Common Issues
 
-## Troubleshooting
+### Authentication Errors
+- Verify API token validity
+- Check token permissions
+- Ensure correct API endpoint
+- Validate token format and encoding
 
-### Common Issues and Solutions
+### Git Credential Issues
+- Verify credential existence in destination
+- Check credential name format
+- Validate Git repository access
+- Ensure proper credential permissions
 
-1. **"Environment not found" error**:
-   - Verify the environment name exists in the source cluster
-   - Check if the environment name follows the expected pattern
-   - Ensure you have the correct permissions to access the environment
-   - Check if Commvault has restored the environment (if applicable)
+### Application Migration Failures
+- Check application dependencies
+- Verify Git repository accessibility
+- Review naming conflicts
+- Monitor transaction logs
+- Check for existing catalog applications
 
-2. **"Failed to create environment" error**:
-   - Verify the destination cluster has sufficient resources
-   - Check if an environment with the same name already exists
-   - Ensure your token has permissions to create environments
-   - Verify all required settings are available in the source environment
+### Catalog Creation Issues
+- Verify permissions
+- Check for existing catalogs
+- Review catalog naming conventions
+- Validate catalog application existence
+- Check pattern matching results
 
-3. **"Catalog application not found" error**:
-   - Run the migration script first to create catalog applications
-   - Verify the catalog name matches the environment base name
-   - Check if the application exists in the catalog
-   - Ensure the application name matches the expected pattern
+## Support
+For issues or questions:
+1. Check the logs in the `logs` directory
+2. Review error messages and transaction logs
+3. Verify configuration and permissions
+4. Contact support team with log files
 
-4. **"Failed to update catalog reference" error**:
-   - Verify the application exists in both environment and catalog
-   - Check if the application ID is correct
-   - Ensure the update payload contains all required fields
-   - Try running the update script again
-
-### Error Messages
-
-Common error messages and their meanings:
-
-1. **"environments:null not found"**:
-   - The environment ID is null or invalid
-   - The environment doesn't exist in the specified cluster
-
-2. **"No access control list found in destination environment"**:
-   - The destination environment doesn't have an ACL configured
-   - The script will create a new ACL with default permissions
-
-3. **"Destination environment not found. This is expected if Commvault hasn't restored it yet"**:
-   - The script will attempt to create the environment
-   - If creation fails, wait for Commvault to restore it
-
-4. **"Failed to update catalog reference"**:
-   - The catalog application doesn't exist
-   - The application name doesn't match between environment and catalog
+## Best Practices
+1. Test in non-production first
+2. Backup before migration
+3. Follow migration order
+4. Monitor progress through logs
+5. Validate results after each step
+6. Keep API tokens secure
+7. Use transaction-based updates
+8. Monitor pattern matching results
 
