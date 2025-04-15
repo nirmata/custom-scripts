@@ -75,7 +75,7 @@ fi
 
 report() {
 
-k8s_version=$(kubectl get nodes --no-headers | awk '{print $5}' | uniq)
+k8s_version=$(kubectl version | grep "Server Version" | awk '{ print $NF }')
 k8s_version_tmp=$(kubectl get nodes --no-headers | awk '{print $5}' | uniq | sed 's/v//g')
 #k8s_version_tmp=$(kubectl get nodes --no-headers | awk '{print $5}' | uniq | sed 's/v//g' | awk -F'-' '{print $1}')
 ky_deploy=$(kubectl get pods -n $KYVERNO_NAMESPACE --no-headers | grep -v cleanup | wc -l)
@@ -107,13 +107,13 @@ oraclecount=$(kubectl get nodes --show-labels | awk '{ print $6 }' | grep -i com
 
 cloudprovider=""
 
-if [[ $awscount != 0 ]]; then
+if [[ $awscount != *0 ]]; then
         cloudprovider="AWS"
-elif [[ $azurecount != 0 ]]; then
+elif [[ $azurecount != *0 ]]; then
         cloudprovider="Azure"
-elif [[ $gkecount != 0 ]]; then
+elif [[ $gkecount != *0 ]]; then
         cloudprovider="Google Cloud"
-elif [[ $oraclecount != 0 ]]; then
+elif [[ $oraclecount != *0 ]]; then
         cloudprovider="Oracle"
 else
         cloudprovider="Other"
@@ -173,7 +173,7 @@ else
         du -h --max-depth=0 * | sort -hr
 fi
 
-du -h --max-depth=0 * | sort -hr
+#du -h --max-depth=0 * | sort -hr
 
 for res in $kobjects
 do
@@ -224,13 +224,19 @@ else
         kubectl get pdb -n $KYVERNO_NAMESPACE
 fi
 echo
-echo "System Namespaces excluded in webhook"
+echo "System Namespaces excluded in webhook:"
 
-for r in $(kubectl get configmap kyverno -n $KYVERNO_NAMESPACE -o jsonpath='{.data.webhooks}' | jq -r '.[].namespaceSelector.matchExpressions[].values[]')
-do
-        echo "- $r"
-done
-echo
+kyvernocm=$(kubectl get cm -n kyverno --no-headers | awk '{ print $1 }' | grep "kyverno$")
+if [[ ! -z ${kyvernocm} ]]; then
+
+	for r in $(kubectl get configmap ${kyvernocm} -n $KYVERNO_NAMESPACE -o jsonpath='{.data.webhooks}' | jq -r '.namespaceSelector.matchExpressions[].values[]')
+	do
+        	echo "- $r"
+	done
+	echo
+else
+	echo "Kyverno configMap not found"
+fi
 
 #echo "-------------------------"
 #echo "`kubectl get cm kyverno -oyaml -n $KYVERNO_NAMESPACE  | grep resourceFilters`"
