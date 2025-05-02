@@ -1,16 +1,27 @@
-# Nirmata Cluster Details Extractor
+# Nirmata Cluster Extractor
 
-A shell script for extracting and reporting Kubernetes cluster information from the Nirmata API.
+A bash script to extract and report Kubernetes cluster information from the Nirmata API.
 
 ## Overview
 
-This script connects to the Nirmata API and generates detailed reports about your Kubernetes clusters, including:
+This utility generates comprehensive reports about Kubernetes clusters managed by Nirmata, including:
 
-- Cluster information (name, version, status, nodes, etc.)
-- Pod counts
-- Application counts (deployments, statefulsets, daemonsets)
-- Namespace information
-- Node details
+- Cluster metadata (name, type, region, status)
+- Node information (count, types, capacity)
+- Application/controller details (deployments, statefulsets)
+- Pod information
+- Environment/namespace details
+
+## Output Files
+
+The script generates multiple CSV files:
+
+- **cluster_summary_{timestamp}.csv**: One line per cluster with essential metrics (executive view)
+- **cluster_consolidated_{timestamp}.csv**: Comprehensive single-line summary per cluster
+- **cluster_details_{timestamp}.csv**: Detailed view with one line per namespace
+- **application_details_{timestamp}.csv**: Information about deployments, statefulsets, etc.
+- **pod_details_{timestamp}.csv**: Pod-level details
+- **node_details_{timestamp}.csv**: Node-level information
 
 ## Usage
 
@@ -18,57 +29,53 @@ This script connects to the Nirmata API and generates detailed reports about you
 ./get_cluster_details.sh <API_ENDPOINT> <API_TOKEN> [ENV_NAME] [test_mode]
 ```
 
-### Parameters
+### Parameters:
 
-- `API_ENDPOINT`: Your Nirmata API endpoint (e.g., https://pe420.nirmata.co)
-- `API_TOKEN`: Your Nirmata API token
-- `ENV_NAME` (optional): Filter by environment type (DEV, PROD, QA, etc.)
-- `test_mode` (optional): Generate sample data for testing purposes
+- **API_ENDPOINT**: Your Nirmata API endpoint (e.g., https://pe420.nirmata.co)
+- **API_TOKEN**: Your Nirmata API token
+- **ENV_NAME** (optional): Filter results to a specific environment (e.g., DEV, PROD)
+- **test_mode** (optional): Generate sample data instead of querying the API
 
-### Example
-
-```bash
-./get_cluster_details.sh https://pe420.nirmata.co "YOUR_API_TOKEN"
-```
-
-To filter for production environments only:
+### Examples:
 
 ```bash
-./get_cluster_details.sh https://pe420.nirmata.co "YOUR_API_TOKEN" PROD
+# Query all environments
+./get_cluster_details.sh https://pe420.nirmata.co YOUR_API_TOKEN
+
+# Filter for production environments only
+./get_cluster_details.sh https://pe420.nirmata.co YOUR_API_TOKEN PROD
+
+# Generate test data
+./get_cluster_details.sh https://pe420.nirmata.co YOUR_API_TOKEN test_mode
 ```
 
-To generate test data:
+## Requirements
 
-```bash
-./get_cluster_details.sh https://example.nirmata.co "dummy_token" test_mode
-```
+- bash
+- curl
+- jq
+- bc (for calculations)
 
-## Output Files
+## Installation
 
-The script generates several CSV files with timestamps in their names:
+1. Clone this repository or download the script
+2. Make the script executable: `chmod +x get_cluster_details.sh`
+3. Run the script with appropriate parameters
 
-1. **cluster_summary_TIMESTAMP.csv** - One line per cluster with high-level metrics (executive view)
-2. **cluster_consolidated_TIMESTAMP.csv** - One line per cluster with all details
-3. **cluster_details_TIMESTAMP.csv** - One line per namespace (technical view)
-4. **application_details_TIMESTAMP.csv** - Detailed application information
-5. **pod_details_TIMESTAMP.csv** - Detailed pod information
-6. **node_details_TIMESTAMP.csv** - Detailed node information
+## Notes
+
+- The API token requires sufficient permissions to access cluster, namespace, and pod information
+- For larger clusters, the script may take some time to run due to multiple API calls
+- The test_mode parameter can be used to verify the script functionality without accessing the API
 
 ## Key Features
 
 - Retrieves real-time data from Nirmata API
 - Handles disconnected clusters gracefully
 - Provides multiple levels of detail in different output files
-- Counts applications and pods across different resource types
+- Counts pods, containers, and applications across different resource types
 - Includes fallback methods to ensure accurate reporting
 - Test mode for generating sample data
-
-## Requirements
-
-- bash
-- curl
-- jq (for JSON parsing)
-- Internet access to your Nirmata API endpoint
 
 ## Troubleshooting
 
