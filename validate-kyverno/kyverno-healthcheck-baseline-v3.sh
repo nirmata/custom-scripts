@@ -325,6 +325,19 @@ echo
 curl -s http://$prom_url/api/v1/query?query=kyverno_policy_changes_total | jq .
 echo -e "\nScraping Client Queries from Prometheus\n"
 echo
+curl -s http://$prom_url/api/v1/query?query=kyverno_cleanup_controller_deletedobjects_total | jq .
+echo -e "\nScraping number of objects deleted by the cleanup controller."
+echo
+curl -s http://$prom_url/api/v1/query?query=kyverno_cleanup_controller_errors_total | jq .
+echo -e "\nScraping number of errors encountered by the cleanup controller while trying to deleting objects."
+echo
+curl -s http://$prom_url/api/v1/query?query=kyverno_ttl_controller_deletedobjects | jq .
+echo -e "\nScraping number of objects deleted by the cleanup TTL controller."
+echo
+curl -s http://$prom_url/api/v1/query?query=kyverno_ttl_controller_errors | jq .
+echo -e "\nScraping number of errors encountered by the cleanup TTL controller while trying to deleting objects."
+echo
+
 curl -s http://$prom_url/api/v1/query?query=kyverno_client_queries_total | jq .
 echo -e "\nAll the raw Kyverno data scraped above is dumped in BaselineReport.txt"
 
