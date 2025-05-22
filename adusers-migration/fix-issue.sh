@@ -3,10 +3,6 @@
 ## to run use:
 # nohup ./migrate-acls-v4.sh > ADoutput$(date +"%Y%m%d").log 2>&1 &
 
-## URL of the Nirmata environment
-## DEV/TEST: https://caasd-nirmata-ent1-dcpdev.duke-energy.com
-## QA: https://caasq-nirmata-ent1-dcpqa.duke-energy.com
-## PROD: https://caasp-nirmata-ent1-dcpprd.duke-energy.com
 NIRMATAURL='https://nirmata.io'
 
 ## Name of the CSV file to use

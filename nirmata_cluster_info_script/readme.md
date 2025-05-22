@@ -80,9 +80,9 @@ Processing nodes for cluster: day2-training
   "cluster_type": "default-addons-type"
 }
 ----------------------------------------
-Processing nodes for cluster: duke-test
+Processing nodes for cluster: user-test
 {
-  "cluster_name": "duke-test",
+  "cluster_name": "user-test",
   "worker_node_count": 0,
   "master_node_count": 1,
   "master_nodes": ["duke-test-control-plane"],

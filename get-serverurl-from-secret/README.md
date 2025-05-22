@@ -10,7 +10,7 @@ The script used in this repo is used to fetch the serverURL from the imagePullSe
 $ ./get-nexus-info.sh
 
 Namespace      | Type           | Name                          | Server URL                    | Policy                   | Update Needed
-admsdev        | Deployment     | sample-nginx                  | nexus.duke-energy.com:18079   | Always                   | Yes
+admsdev        | Deployment     | sample-nginx                  | nexus.test.com:18079   | Always                   | Yes
 default        | Deployment     | test                          | DOCKER_REGISTRY_SERVER        | Always                   | Yes
 
 ```

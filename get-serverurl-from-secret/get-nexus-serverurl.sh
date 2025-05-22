@@ -46,7 +46,7 @@ for namespace in $allns; do
 
         # Determine if an update is needed based on the server URL
         updateNeeded="Yes"
-        if [[ $serverURL1 == "nexus-docker-private-registry.ci.duke-energy.app" ]] || [[ $serverURL2 == "nexus-docker-private-registry.ci.duke-energy.app" ]]; then
+        if [[ $serverURL1 == "<placeholderforurl1>" ]] || [[ $serverURL2 == "<placeholderforurl2>" ]]; then
           updateNeeded="No"
         fi
       fi

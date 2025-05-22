@@ -35,8 +35,6 @@ spec:
             terminationMessagePath: /dev/termination-log
             terminationMessagePolicy: File
           dnsPolicy: ClusterFirst
-          # imagePullSecrets:
-          # - name: nexus-docker-private-registry-dcp.ci.duke-energy.app
           restartPolicy: Never
           schedulerName: default-scheduler
           terminationGracePeriodSeconds: 30

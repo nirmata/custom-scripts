@@ -11,6 +11,6 @@ Warning: v1 ComponentStatus is deprecated in v1.19+
 Warning: v1 ComponentStatus is deprecated in v1.19+
 Warning: v1 ComponentStatus is deprecated in v1.19+
 Warning: v1 ComponentStatus is deprecated in v1.19+
-Backup completed in /Users/sagarkundral/Downloads/scripts/duke/backup-k8s-resources/2024-11-11_11-51-12
+Backup completed in /Users/sagarkundral/Downloads/scripts/test/backup-k8s-resources/2024-11-11_11-51-12
 
 ```
