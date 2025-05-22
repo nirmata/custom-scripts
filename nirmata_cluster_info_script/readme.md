@@ -85,7 +85,7 @@ Processing nodes for cluster: user-test
   "cluster_name": "user-test",
   "worker_node_count": 0,
   "master_node_count": 1,
-  "master_nodes": ["duke-test-control-plane"],
+  "master_nodes": ["user-test-control-plane"],
   "worker_nodes": [],
   "cluster_status": ["Validating cluster settings"],
   "creation_date": "2025-02-13 15:10:30 UTC",
